@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🚲 CicloDesk</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <header>
+    <h1>🚲 CicloDesk</h1>
+    <nav>
+      <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+      <button class="nav-btn" data-view="clienti">Clienti</button>
+      <button class="nav-btn" data-view="ordini">Ordini</button>
+      <button class="nav-btn" data-view="catalogo">Catalogo Lavorazioni</button>
+    </nav>
+  </header>
+
+  <main id="app">
+
+    <!-- ═══════════════════════════════════════════ DASHBOARD -->
+    <section id="view-dashboard" class="view active">
+      <h2>Dashboard</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-num" id="stat-num-clienti">0</span>
+          <span class="stat-label">Clienti registrati</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="stat-num-in">0</span>
+          <span class="stat-label">In officina ora</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="stat-num-out">0</span>
+          <span class="stat-label">Usciti oggi</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="stat-num-revenue">€0</span>
+          <span class="stat-label">Incasso oggi</span>
+        </div>
+      </div>
+      <h3>🔧 Bici attualmente in officina</h3>
+      <div id="dashboard-in-list" class="card-list"></div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ CLIENTI -->
+    <section id="view-clienti" class="view">
+      <div class="view-header">
+        <h2>Schede Clienti</h2>
+        <button id="btn-nuovo-cliente" class="btn btn-primary">+ Nuovo Cliente</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="search-clienti" placeholder="🔍 Cerca per nome, telefono…" />
+      </div>
+      <div id="clienti-list" class="card-list"></div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ ORDINI -->
+    <section id="view-ordini" class="view">
+      <div class="view-header">
+        <h2>Ordini di Lavoro</h2>
+        <button id="btn-nuovo-ordine" class="btn btn-primary">+ Nuovo Ordine</button>
+      </div>
+      <div class="filter-bar">
+        <label><input type="radio" name="filter-ordini" value="tutti" checked /> Tutti</label>
+        <label><input type="radio" name="filter-ordini" value="aperto" /> In officina</label>
+        <label><input type="radio" name="filter-ordini" value="chiuso" /> Completati</label>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="search-ordini" placeholder="🔍 Cerca per cliente, lavorazione, note…" />
+      </div>
+      <div id="ordini-list" class="card-list"></div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ CATALOGO -->
+    <section id="view-catalogo" class="view">
+      <div class="view-header">
+        <h2>Catalogo Lavorazioni</h2>
+        <button id="btn-nuova-lavorazione" class="btn btn-primary">+ Aggiungi Lavorazione</button>
+      </div>
+      <div id="catalogo-list" class="card-list"></div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════════ MODALI -->
+
+  <!-- Modal Cliente -->
+  <div id="modal-cliente" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="modal-cliente-title">Nuovo Cliente</h3>
+      <form id="form-cliente" novalidate>
+        <input type="hidden" id="cliente-id" />
+        <div class="form-grid">
+          <label>Nome *
+            <input type="text" id="cliente-nome" required placeholder="Mario Rossi" />
+          </label>
+          <label>Telefono *
+            <input type="tel" id="cliente-telefono" required placeholder="+39 333 1234567" />
+          </label>
+          <label>Email
+            <input type="email" id="cliente-email" placeholder="mario@example.com" />
+          </label>
+          <label>Modello Bici
+            <input type="text" id="cliente-bici" placeholder="Trek FX3, Bianchi Via Nirone…" />
+          </label>
+          <label class="full-width">Note Cliente
+            <textarea id="cliente-note" rows="3" placeholder="Allergie, preferenze, ecc."></textarea>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary modal-close">Annulla</button>
+          <button type="submit" class="btn btn-primary">Salva</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Ordine -->
+  <div id="modal-ordine" class="modal hidden">
+    <div class="modal-box modal-box-large">
+      <h3 id="modal-ordine-title">Nuovo Ordine di Lavoro</h3>
+      <form id="form-ordine" novalidate>
+        <input type="hidden" id="ordine-id" />
+        <div class="form-grid">
+          <label>Cliente *
+            <select id="ordine-cliente-id" required>
+              <option value="">— Seleziona cliente —</option>
+            </select>
+          </label>
+          <label>Data Ingresso
+            <input type="datetime-local" id="ordine-data-ingresso" />
+          </label>
+          <label class="full-width">Note Generali Ordine
+            <textarea id="ordine-note" rows="2" placeholder="Descrizione rapida del problema…"></textarea>
+          </label>
+        </div>
+        <hr />
+        <div class="lavorazioni-header">
+          <h4>Lavorazioni</h4>
+          <button type="button" id="btn-aggiungi-voce" class="btn btn-secondary">+ Aggiungi Voce</button>
+        </div>
+        <table id="tabella-voci">
+          <thead>
+            <tr>
+              <th>Lavorazione</th>
+              <th>Note</th>
+              <th>Prezzo €</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-voci"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2"><strong>Totale</strong></td>
+              <td><strong id="totale-ordine">€ 0,00</strong></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary modal-close">Annulla</button>
+          <button type="submit" class="btn btn-primary">Salva Ordine</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Lavorazione Catalogo -->
+  <div id="modal-lavorazione" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="modal-lavorazione-title">Nuova Lavorazione</h3>
+      <form id="form-lavorazione" novalidate>
+        <input type="hidden" id="lavorazione-id" />
+        <div class="form-grid">
+          <label>Nome Lavorazione *
+            <input type="text" id="lavorazione-nome" required placeholder="Tagliando completo" />
+          </label>
+          <label>Prezzo Predefinito €
+            <input type="number" id="lavorazione-prezzo" min="0" step="0.01" placeholder="25.00" />
+          </label>
+          <label class="full-width">Descrizione
+            <textarea id="lavorazione-descrizione" rows="2"></textarea>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary modal-close">Annulla</button>
+          <button type="submit" class="btn btn-primary">Salva</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Overlay -->
+  <div id="overlay" class="overlay hidden"></div>
+
+  <!-- Script (ordine importante) -->
+  <script src="js/db.js"></script>
+  <script src="js/lavorazioni.js"></script>
+  <script src="js/clienti.js"></script>
+  <script src="js/ordini.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
