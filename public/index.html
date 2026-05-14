@@ -91,7 +91,7 @@
 
   </main>
 
-  <!-- ═══════════════════════════════════════════════════════ MODALI -->
+  <!-- ══════════════════════════════════════════════════ MODALI -->
 
   <!-- Modal Cliente -->
   <div id="modal-cliente" class="modal hidden">
@@ -174,7 +174,7 @@
     </div>
   </div>
 
-  <!-- Modal Lavorazione -->
+  <!-- Modal Lavorazione Catalogo -->
   <div id="modal-lavorazione" class="modal hidden">
     <div class="modal-box">
       <h3 id="modal-lavorazione-title">Nuova Lavorazione</h3>
@@ -196,6 +196,52 @@
           <button type="submit" class="btn btn-primary">Salva</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal Storico Cliente -->
+  <div id="modal-storico" class="modal hidden">
+    <div class="modal-box modal-box-large">
+
+      <div class="storico-header">
+        <div>
+          <h3 id="storico-cliente-nome">—</h3>
+          <p id="storico-cliente-info" class="card-sub"></p>
+        </div>
+        <button type="button" class="btn btn-secondary modal-close">✕ Chiudi</button>
+      </div>
+
+      <div class="storico-stats">
+        <div class="storico-stat">
+          <span class="storico-stat-num" id="storico-stat-ordini">0</span>
+          <span class="storico-stat-label">Interventi totali</span>
+        </div>
+        <div class="storico-stat">
+          <span class="storico-stat-num" id="storico-stat-chiusi">0</span>
+          <span class="storico-stat-label">Completati</span>
+        </div>
+        <div class="storico-stat">
+          <span class="storico-stat-num" id="storico-stat-speso">€ 0</span>
+          <span class="storico-stat-label">Totale speso</span>
+        </div>
+        <div class="storico-stat">
+          <span class="storico-stat-num" id="storico-stat-media">€ 0</span>
+          <span class="storico-stat-label">Spesa media</span>
+        </div>
+        <div class="storico-stat storico-stat-wide">
+          <span class="storico-stat-num" id="storico-stat-ultima">—</span>
+          <span class="storico-stat-label">Ultimo ingresso</span>
+        </div>
+      </div>
+
+      <hr />
+
+      <div class="storico-search-bar">
+        <input type="text" id="search-storico" placeholder="🔍 Cerca tra gli interventi…" />
+      </div>
+
+      <div id="storico-ordini-list"></div>
+
     </div>
   </div>
 
