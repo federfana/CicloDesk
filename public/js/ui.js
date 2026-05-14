@@ -1,5 +1,6 @@
 const UI = (() => {
 
+  // ── Helpers ───────────────────────────────────────────────────
   function fmt(num) {
     return '€ ' + (num || 0).toFixed(2).replace('.', ',');
   }
@@ -16,6 +17,24 @@ const UI = (() => {
     return `<p class="empty-state">${msg}</p>`;
   }
 
+  // ── Incasso: legge preferenza visibilità da localStorage ──────
+  function incassoVisibile() {
+    return localStorage.getItem('incasso_visible') !== 'false';
+  }
+
+  function aggiornaIncasso(valore) {
+    const el  = document.getElementById('stat-num-revenue');
+    const btn = document.getElementById('btn-toggle-incasso');
+    if (!el || !btn) return;
+
+    // Salva sempre il valore reale sull'elemento
+    el.dataset.valore = fmt(valore);
+
+    // Mostra o maschera
+    el.textContent  = incassoVisibile() ? fmt(valore) : '€ ••••';
+    btn.textContent = incassoVisibile() ? '👁' : '🙈';
+  }
+
   // ── Dashboard ─────────────────────────────────────────────────
   async function renderDashboard() {
     const [aperti, chiusiOggi, clienti] = await Promise.all([
@@ -28,7 +47,9 @@ const UI = (() => {
     document.getElementById('stat-num-clienti').textContent = clienti.length;
     document.getElementById('stat-num-in').textContent      = aperti.length;
     document.getElementById('stat-num-out').textContent     = chiusiOggi.length;
-    document.getElementById('stat-num-revenue').textContent = fmt(incasso);
+
+    // Usa la funzione dedicata per l'incasso
+    aggiornaIncasso(incasso);
 
     const container  = document.getElementById('dashboard-in-list');
     const clientiMap = Object.fromEntries(clienti.map(c => [c.id, c]));
@@ -104,10 +125,7 @@ const UI = (() => {
     const clientiMap = Object.fromEntries(clienti.map(c => [c.id, c]));
 
     let ordini = tuttiOrdini;
-
-    if (filtro !== 'tutti') {
-      ordini = ordini.filter(o => o.stato === filtro);
-    }
+    if (filtro !== 'tutti') ordini = ordini.filter(o => o.stato === filtro);
 
     if (query.trim()) {
       const q = query.toLowerCase().trim();
@@ -328,7 +346,7 @@ const UI = (() => {
   return {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
-    aggiungiRigaVoce, raccogliVoci,
+    aggiungiRigaVoce, raccogliVoci, aggiornaIncasso,
     openModal, closeAllModals,
   };
 })();

@@ -48,6 +48,21 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => showView(btn.dataset.view))
   );
 
+  // ── Toggle visibilità incasso ─────────────────────────────────
+  document.getElementById('btn-toggle-incasso').addEventListener('click', () => {
+    // Legge stato corrente e lo inverte
+    const visibile    = localStorage.getItem('incasso_visible') !== 'false';
+    const nuovoStato  = !visibile;
+    localStorage.setItem('incasso_visible', nuovoStato);
+
+    // Recupera il valore reale salvato sull'elemento e aggiorna la UI
+    const el     = document.getElementById('stat-num-revenue');
+    const valore = el.dataset.valore || '€ 0,00';
+
+    el.textContent = nuovoStato ? valore : '€ ••••';
+    document.getElementById('btn-toggle-incasso').textContent = nuovoStato ? '👁' : '🙈';
+  });
+
   // ── Ricerca ───────────────────────────────────────────────────
   document.getElementById('search-clienti').addEventListener('input', e =>
     UI.renderClienti(e.target.value).catch(showError)
