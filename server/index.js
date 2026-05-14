@@ -9,9 +9,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ── Route API ──────────────────────────────────────────────────
-app.use('/api/clienti',     require('./routes/clienti'));
-app.use('/api/ordini',      require('./routes/ordini'));
-app.use('/api/lavorazioni', require('./routes/lavorazioni'));
+app.use('/api/clienti',      require('./routes/clienti'));
+app.use('/api/ordini',       require('./routes/ordini'));
+app.use('/api/lavorazioni',  require('./routes/lavorazioni'));
+app.use('/api/bici',         require('./routes/bici'));
+app.use('/api/bici-clienti', require('./routes/bici-clienti'));
 
 // ── Fallback SPA ───────────────────────────────────────────────
 app.get('*', (_req, res) => {
