@@ -12,7 +12,7 @@ const db = new Database(path.join(dataDir, 'officina.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// ── Schema ─────────────────────────────────────────────────────
+// ── Schema ─────────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS clienti (
     id          TEXT PRIMARY KEY,
@@ -40,8 +40,35 @@ db.exec(`
     note         TEXT DEFAULT '',
     voci         TEXT DEFAULT '[]',
     totale       REAL DEFAULT 0,
-    FOREIGN KEY (clienteId) REFERENCES clienti(id)
+    biciId       TEXT DEFAULT NULL,
+    FOREIGN KEY (clienteId) REFERENCES clienti(id),
+    FOREIGN KEY (biciId) REFERENCES bici(id)
   );
+
+  CREATE TABLE IF NOT EXISTS bici (
+    id            TEXT PRIMARY KEY,
+    modello       TEXT NOT NULL,
+    numero_seriale TEXT DEFAULT '',
+    tipo          TEXT DEFAULT '',
+    anno          INTEGER DEFAULT NULL,
+    note          TEXT DEFAULT '',
+    createdAt     TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS bici_clienti (
+    id                  TEXT PRIMARY KEY,
+    bici_id             TEXT NOT NULL,
+    cliente_id          TEXT NOT NULL,
+    data_associazione   TEXT DEFAULT (datetime('now')),
+    data_rimozione      TEXT DEFAULT NULL,
+    note_associazione   TEXT DEFAULT '',
+    FOREIGN KEY (bici_id) REFERENCES bici(id),
+    FOREIGN KEY (cliente_id) REFERENCES clienti(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_bici_clienti_cliente ON bici_clienti(cliente_id);
+  CREATE INDEX IF NOT EXISTS idx_bici_clienti_bici ON bici_clienti(bici_id);
+  CREATE INDEX IF NOT EXISTS idx_ordini_bici ON ordini(biciId);
 `);
 
 // ── Seed lavorazioni default (solo se tabella vuota) ───────────
