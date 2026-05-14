@@ -37,7 +37,10 @@
           <span class="stat-label">Usciti oggi</span>
         </div>
         <div class="stat-card">
-          <span class="stat-num" id="stat-num-revenue">€0</span>
+          <div class="stat-incasso-row">
+            <span class="stat-num" id="stat-num-revenue">€0</span>
+            <button id="btn-toggle-incasso" class="btn-eye" title="Mostra/Nascondi incasso">👁</button>
+          </div>
           <span class="stat-label">Incasso oggi</span>
         </div>
       </div>
@@ -168,7 +171,7 @@
     </div>
   </div>
 
-  <!-- Modal Lavorazione Catalogo -->
+  <!-- Modal Lavorazione -->
   <div id="modal-lavorazione" class="modal hidden">
     <div class="modal-box">
       <h3 id="modal-lavorazione-title">Nuova Lavorazione</h3>
