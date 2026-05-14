@@ -13,6 +13,13 @@ const UI = (() => {
     });
   }
 
+  function fmtDateOnly(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString('it-IT', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+  }
+
   function emptyState(msg) {
     return `<p class="empty-state">${msg}</p>`;
   }
@@ -95,6 +102,7 @@ const UI = (() => {
             <div class="card-actions">
               <button class="btn btn-sm btn-secondary" data-action="storico-cliente"       data-id="${c.id}">📋 Storico</button>
               <button class="btn btn-sm btn-primary"   data-action="nuovo-ordine-cliente"  data-id="${c.id}">+ Ordine</button>
+              <button class="btn btn-sm btn-secondary" data-action="bici-cliente"          data-id="${c.id}">🚲</button>
               <button class="btn btn-sm btn-secondary" data-action="edit-cliente"          data-id="${c.id}">✏</button>
               <button class="btn btn-sm btn-danger"    data-action="del-cliente"           data-id="${c.id}">🗑</button>
             </div>
@@ -296,6 +304,54 @@ const UI = (() => {
     renderStoricoLista(filtrati);
   }
 
+  // ── Modal Bici Cliente ─────────────────────────────────────────
+  async function apriModalBiciCliente(clienteId) {
+    const cliente = await ClientiService.findById(clienteId);
+    const biciClienti = await BiciClientiService.getByCliente(clienteId);
+
+    // Popola le bici attuali e storiche
+    const attuali = biciClienti.filter(bc => !bc.data_rimozione);
+    const storiche = biciClienti.filter(bc => bc.data_rimozione);
+
+    document.getElementById('bici-cliente-nome').textContent = cliente.nome;
+    document.getElementById('bici-cliente-id-hidden').value = clienteId;
+
+    renderBiciClientiList('bici-attuali-list', attuali, false, clienteId);
+    renderBiciClientiList('bici-storiche-list', storiche, true, clienteId);
+
+    openModal('modal-bici-cliente');
+  }
+
+  function renderBiciClientiList(containerId, biciList, isStoriche, clienteId) {
+    const container = document.getElementById(containerId);
+
+    if (!biciList.length) {
+      container.innerHTML = emptyState(isStoriche ? 'Nessuna bici rimossa.' : 'Nessuna bici associata.');
+      return;
+    }
+
+    container.innerHTML = biciList.map(bc => `
+      <div class="bici-item">
+        <div class="bici-item-info">
+          <strong>🚲 ${bc.modello}</strong>
+          <span class="bici-item-date">
+            ${isStoriche
+              ? `dal ${fmtDateOnly(bc.data_associazione)} - rimossa ${fmtDateOnly(bc.data_rimozione)}`
+              : `dal ${fmtDateOnly(bc.data_associazione)}`}
+          </span>
+        </div>
+        <button class="btn btn-sm btn-danger" data-action="rimuovi-bici" data-assoc-id="${bc.id}">❌</button>
+      </div>
+    `).join('');
+  }
+
+  async function apriModalAggiungi Bici(clienteId) {
+    document.getElementById('bici-cliente-id-hidden').value = clienteId;
+    document.getElementById('form-aggiungi-bici').reset();
+    openModal('modal-aggiungi-bici');
+    document.getElementById('bici-modello').focus();
+  }
+
   // ── Modal helpers ─────────────────────────────────────────────
   function openModal(id) {
     document.getElementById(id).classList.remove('hidden');
@@ -438,6 +494,7 @@ const UI = (() => {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
     apriModalStorico, filtraStorico,
+    apriModalBiciCliente, apriModalAggiungi Bici,
     aggiungiRigaVoce, raccogliVoci, aggiornaIncasso,
     openModal, closeAllModals,
   };
