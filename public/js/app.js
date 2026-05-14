@@ -50,15 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Toggle visibilità incasso ─────────────────────────────────
   document.getElementById('btn-toggle-incasso').addEventListener('click', () => {
-    // Legge stato corrente e lo inverte
-    const visibile    = localStorage.getItem('incasso_visible') !== 'false';
-    const nuovoStato  = !visibile;
+    const visibile   = localStorage.getItem('incasso_visible') !== 'false';
+    const nuovoStato = !visibile;
     localStorage.setItem('incasso_visible', nuovoStato);
 
-    // Recupera il valore reale salvato sull'elemento e aggiorna la UI
     const el     = document.getElementById('stat-num-revenue');
     const valore = el.dataset.valore || '€ 0,00';
-
     el.textContent = nuovoStato ? valore : '€ ••••';
     document.getElementById('btn-toggle-incasso').textContent = nuovoStato ? '👁' : '🙈';
   });
@@ -74,6 +71,11 @@ document.addEventListener('DOMContentLoaded', () => {
     r.addEventListener('change', () =>
       UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery()).catch(showError)
     )
+  );
+
+  // ── Ricerca nello storico (live) ──────────────────────────────
+  document.getElementById('search-storico').addEventListener('input', e =>
+    UI.filtraStorico(e.target.value)
   );
 
   // ── Apertura modali ───────────────────────────────────────────
@@ -111,6 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       switch (action) {
+
+        // ── Clienti
         case 'edit-cliente':
           await UI.apriModalCliente(id); break;
         case 'del-cliente':
@@ -123,6 +127,12 @@ document.addEventListener('DOMContentLoaded', () => {
           await showView('ordini');
           await UI.apriModalOrdine(null, id);
           break;
+
+        // ── Storico
+        case 'storico-cliente':
+          await UI.apriModalStorico(id); break;
+
+        // ── Ordini
         case 'edit-ordine':
           await UI.apriModalOrdine(id); break;
         case 'del-ordine':
@@ -139,6 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
           await OrdiniService.riapri(id);
           await refreshView(currentView);
           break;
+
+        // ── Catalogo
         case 'edit-lavorazione':
           await UI.apriModalLavorazione(id); break;
         case 'del-lavorazione':
@@ -183,8 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clienteId = document.getElementById('ordine-cliente-id').value;
     if (!clienteId) return alert('Seleziona un cliente.');
     try {
-      const voci      = UI.raccogliVoci();
-      const ordineId  = document.getElementById('ordine-id').value || null;
+      const voci     = UI.raccogliVoci();
+      const ordineId = document.getElementById('ordine-id').value || null;
       const esistente = ordineId ? await OrdiniService.findById(ordineId) : null;
 
       await OrdiniService.salva({

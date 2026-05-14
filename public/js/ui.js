@@ -17,7 +17,7 @@ const UI = (() => {
     return `<p class="empty-state">${msg}</p>`;
   }
 
-  // ── Incasso: legge preferenza visibilità da localStorage ──────
+  // ── Incasso toggle ────────────────────────────────────────────
   function incassoVisibile() {
     return localStorage.getItem('incasso_visible') !== 'false';
   }
@@ -26,13 +26,9 @@ const UI = (() => {
     const el  = document.getElementById('stat-num-revenue');
     const btn = document.getElementById('btn-toggle-incasso');
     if (!el || !btn) return;
-
-    // Salva sempre il valore reale sull'elemento
-    el.dataset.valore = fmt(valore);
-
-    // Mostra o maschera
-    el.textContent  = incassoVisibile() ? fmt(valore) : '€ ••••';
-    btn.textContent = incassoVisibile() ? '👁' : '🙈';
+    el.dataset.valore  = fmt(valore);
+    el.textContent     = incassoVisibile() ? fmt(valore) : '€ ••••';
+    btn.textContent    = incassoVisibile() ? '👁' : '🙈';
   }
 
   // ── Dashboard ─────────────────────────────────────────────────
@@ -47,8 +43,6 @@ const UI = (() => {
     document.getElementById('stat-num-clienti').textContent = clienti.length;
     document.getElementById('stat-num-in').textContent      = aperti.length;
     document.getElementById('stat-num-out').textContent     = chiusiOggi.length;
-
-    // Usa la funzione dedicata per l'incasso
     aggiornaIncasso(incasso);
 
     const container  = document.getElementById('dashboard-in-list');
@@ -70,8 +64,8 @@ const UI = (() => {
           <span class="card-sub">${c?.bici || '—'} &nbsp;|&nbsp; Ingresso: ${fmtDate(o.dataIngresso)}</span>
           <span class="card-sub">${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} — <strong>${fmt(o.totale)}</strong></span>
           <div class="card-actions">
-            <button class="btn btn-sm btn-success"   data-action="chiudi-ordine" data-id="${o.id}">✔ Segna uscita</button>
-            <button class="btn btn-sm btn-secondary" data-action="edit-ordine"   data-id="${o.id}">✏ Modifica</button>
+            <button class="btn btn-sm btn-success"   data-action="chiudi-ordine"   data-id="${o.id}">✔ Segna uscita</button>
+            <button class="btn btn-sm btn-secondary" data-action="edit-ordine"     data-id="${o.id}">✏ Modifica</button>
           </div>
         </div>`;
     }).join('');
@@ -93,14 +87,16 @@ const UI = (() => {
     container.innerHTML = clienti.map(c => {
       const ordini = tuttiOrdini.filter(o => o.clienteId === c.id);
       const aperti = ordini.filter(o => o.stato === 'aperto').length;
+      const totaleSpeso = OrdiniService.calcolaIncasso(ordini.filter(o => o.stato === 'chiuso'));
       return `
         <div class="card">
           <div class="card-row">
             <span class="card-title">👤 ${c.nome}</span>
             <div class="card-actions">
-              <button class="btn btn-sm btn-primary"   data-action="nuovo-ordine-cliente" data-id="${c.id}">+ Ordine</button>
-              <button class="btn btn-sm btn-secondary" data-action="edit-cliente"         data-id="${c.id}">✏</button>
-              <button class="btn btn-sm btn-danger"    data-action="del-cliente"          data-id="${c.id}">🗑</button>
+              <button class="btn btn-sm btn-secondary" data-action="storico-cliente"       data-id="${c.id}">📋 Storico</button>
+              <button class="btn btn-sm btn-primary"   data-action="nuovo-ordine-cliente"  data-id="${c.id}">+ Ordine</button>
+              <button class="btn btn-sm btn-secondary" data-action="edit-cliente"          data-id="${c.id}">✏</button>
+              <button class="btn btn-sm btn-danger"    data-action="del-cliente"           data-id="${c.id}">🗑</button>
             </div>
           </div>
           <div class="card-row">
@@ -109,7 +105,7 @@ const UI = (() => {
           </div>
           ${c.note ? `<span class="card-sub">📝 ${c.note}</span>` : ''}
           <span class="card-sub">
-            ${ordini.length} ordini totali
+            ${ordini.length} interventi &nbsp;|&nbsp; Speso: ${fmt(totaleSpeso)}
             ${aperti > 0 ? `&nbsp;<span class="card-badge badge-aperto">${aperti} in corso</span>` : ''}
           </span>
         </div>`;
@@ -205,6 +201,101 @@ const UI = (() => {
     ).join('');
   }
 
+  // ── Storico Cliente ───────────────────────────────────────────
+  let _storicoOrdini   = [];   // cache per ricerca live
+  let _storicoClienteId = null;
+
+  async function apriModalStorico(clienteId) {
+    const [cliente, tuttiOrdini] = await Promise.all([
+      ClientiService.findById(clienteId),
+      OrdiniService.getByCliente(clienteId),
+    ]);
+
+    // Ordina dal più recente
+    _storicoOrdini    = tuttiOrdini.sort((a, b) =>
+      new Date(b.dataIngresso) - new Date(a.dataIngresso)
+    );
+    _storicoClienteId = clienteId;
+
+    // Header
+    document.getElementById('storico-cliente-nome').textContent = cliente.nome;
+    document.getElementById('storico-cliente-info').textContent =
+      [cliente.bici, cliente.telefono, cliente.email].filter(Boolean).join('  ·  ');
+
+    // Stats
+    const chiusi      = _storicoOrdini.filter(o => o.stato === 'chiuso');
+    const totaleSpeso = OrdiniService.calcolaIncasso(chiusi);
+    const media       = chiusi.length ? totaleSpeso / chiusi.length : 0;
+
+    document.getElementById('storico-stat-ordini').textContent = _storicoOrdini.length;
+    document.getElementById('storico-stat-chiusi').textContent = chiusi.length;
+    document.getElementById('storico-stat-speso').textContent  = fmt(totaleSpeso);
+    document.getElementById('storico-stat-media').textContent  = fmt(media);
+    document.getElementById('storico-stat-ultima').textContent =
+      _storicoOrdini.length ? fmtDate(_storicoOrdini[0].dataIngresso) : '—';
+
+    // Reset ricerca
+    document.getElementById('search-storico').value = '';
+
+    renderStoricoLista(_storicoOrdini);
+    openModal('modal-storico');
+  }
+
+  function renderStoricoLista(ordini) {
+    const container = document.getElementById('storico-ordini-list');
+
+    if (!ordini.length) {
+      container.innerHTML = emptyState('Nessun intervento trovato.');
+      return;
+    }
+
+    container.innerHTML = ordini.map((o, i) => {
+      const vociHtml = o.voci.map(v =>
+        `<span class="tag">${v.nome} — ${fmt(v.prezzo)}${v.note ? ` (${v.note})` : ''}</span>`
+      ).join('');
+
+      return `
+        <div class="storico-ordine-card stato-${o.stato}">
+          <div class="storico-ordine-header">
+            <div>
+              <span class="storico-ordine-data">📅 ${fmtDate(o.dataIngresso)}</span>
+              ${o.dataUscita
+                ? `<span class="storico-ordine-uscita">→ uscita ${fmtDate(o.dataUscita)}</span>`
+                : ''}
+            </div>
+            <div style="display:flex;align-items:center;gap:.6rem;">
+              <span class="card-badge badge-${o.stato}">
+                ${o.stato === 'aperto' ? '🔧 In corso' : '✅ Completato'}
+              </span>
+              <span class="storico-ordine-totale">${fmt(o.totale)}</span>
+              <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏</button>
+            </div>
+          </div>
+          ${o.note ? `<p class="card-sub" style="margin-bottom:.3rem">📝 ${o.note}</p>` : ''}
+          <div class="storico-voci">
+            ${vociHtml || '<span class="card-sub">Nessuna lavorazione registrata</span>'}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function filtraStorico(query) {
+    if (!query.trim()) {
+      renderStoricoLista(_storicoOrdini);
+      return;
+    }
+    const q = query.toLowerCase().trim();
+    const filtrati = _storicoOrdini.filter(o =>
+      (o.note || '').toLowerCase().includes(q) ||
+      o.voci.some(v =>
+        v.nome.toLowerCase().includes(q) ||
+        (v.note || '').toLowerCase().includes(q)
+      ) ||
+      fmtDate(o.dataIngresso).includes(q)
+    );
+    renderStoricoLista(filtrati);
+  }
+
   // ── Modal helpers ─────────────────────────────────────────────
   function openModal(id) {
     document.getElementById(id).classList.remove('hidden');
@@ -264,8 +355,8 @@ const UI = (() => {
   }
 
   function aggiungiRigaVoce(voce = {}, lavorazioni = []) {
-    const tbody  = document.getElementById('tbody-voci');
-    const tr     = document.createElement('tr');
+    const tbody   = document.getElementById('tbody-voci');
+    const tr      = document.createElement('tr');
     const opzioni = lavorazioni.map(l =>
       `<option value="${l.id}" data-prezzo="${l.prezzo}"
         ${voce.lavorazioneId === l.id ? 'selected' : ''}>${l.nome}</option>`
@@ -346,6 +437,7 @@ const UI = (() => {
   return {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
+    apriModalStorico, filtraStorico,
     aggiungiRigaVoce, raccogliVoci, aggiornaIncasso,
     openModal, closeAllModals,
   };
