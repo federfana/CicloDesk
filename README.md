@@ -1,4 +1,4 @@
-# 🚲 CicloDesk — Documentazione
+# 🚲 CicloDesk — Documentazione Completa
 
 > Gestionale per ciclo officina: schede clienti, ordini di lavoro, catalogo lavorazioni.
 > Tecnologie: **Node.js · Express · SQLite · HTML/CSS/JS vanilla**
@@ -12,12 +12,15 @@
 3. [Installazione passo per passo](#3-installazione-passo-per-passo)
 4. [Avvio del server](#4-avvio-del-server)
 5. [Accesso da telefono o tablet](#5-accesso-da-telefono-o-tablet)
-6. [Descrizione dei moduli](#6-descrizione-dei-moduli)
-7. [API REST — Riferimento](#7-api-rest--riferimento)
-8. [Database](#8-database)
-9. [Backup e ripristino](#9-backup-e-ripristino)
-10. [Risoluzione problemi](#10-risoluzione-problemi)
-11. [Aggiornamenti futuri consigliati](#11-aggiornamenti-futuri-consigliati)
+6. [Tecnologie usate](#6-tecnologie-usate)
+7. [Descrizione dettagliata dei moduli](#7-descrizione-dettagliata-dei-moduli)
+8. [Come comunicano tra loro](#8-come-comunicano-tra-loro)
+9. [API REST — Riferimento](#9-api-rest--riferimento)
+10. [Database](#10-database)
+11. [Backup e ripristino](#11-backup-e-ripristino)
+12. [Risoluzione problemi](#12-risoluzione-problemi)
+13. [Aggiornamenti futuri consigliati](#13-aggiornamenti-futuri-consigliati)
+14. [Note di versione](#14-note-di-versione)
 
 ---
 
@@ -32,6 +35,7 @@
 | **Rete** | Wi-Fi o LAN locale | Per accesso da telefono/tablet |
 
 > ℹ️ Internet serve solo per la prima installazione di Node.js e delle dipendenze npm.
+> Il gestionale funziona completamente **offline** in rete locale.
 
 ---
 
@@ -39,30 +43,53 @@
 
 ```
 ciclodesk/
-├── package.json
-├── start.bat
-├── start.sh
-├── DOCUMENTAZIONE.md
-├── data/
-│   └── officina.db
+├── package.json              # Dipendenze e script npm
+├── start.bat                 # Avvio rapido Windows (doppio clic)
+├── start.sh                  # Avvio rapido Mac/Linux
+├── CICLODESK_COMPLETO.md     # Questo file
+│
+├── data/                     # Creata automaticamente all'avvio
+│   └── officina.db           # Database SQLite (tutti i dati)
+│
 ├── server/
-│   ├── index.js
-│   ├── db.js
+│   ├── index.js              # Entry point — server Express
+│   ├── db.js                 # Connessione SQLite, schema, seed dati
 │   └── routes/
-│       ├── clienti.js
-│       ├── ordini.js
-│       └── lavorazioni.js
+│       ├── clienti.js        # GET/POST/PUT/DELETE /api/clienti
+│       ├── ordini.js         # GET/POST/PUT/DELETE /api/ordini
+│       └── lavorazioni.js    # GET/POST/PUT/DELETE /api/lavorazioni
+│
 └── public/
-    ├── index.html
+    ├── index.html            # Pagina principale (SPA)
     ├── css/
-    │   └── style.css
+    │   └── style.css         # Tutti gli stili
     └── js/
-        ├── db.js
-        ├── lavorazioni.js
-        ├── clienti.js
-        ├── ordini.js
-        ├── ui.js
-        └── app.js
+        ├── db.js             # Client HTTP (fetch → API server)
+        ├── lavorazioni.js    # Logica catalogo lavorazioni
+        ├── clienti.js        # Logica schede clienti
+        ├── ordini.js         # Logica ordini di lavoro
+        ├── ui.js             # Rendering interfaccia e modali
+        └── app.js            # Bootstrap, navigazione, eventi globali
+```
+
+### Flusso dati
+
+```
+Browser (PC / Telefono)
+        │
+        │  HTTP / JSON
+        ▼
+server/index.js  (Express — porta 3000)
+        │
+        ├── /api/clienti     → server/routes/clienti.js
+        ├── /api/ordini      → server/routes/ordini.js
+        └── /api/lavorazioni → server/routes/lavorazioni.js
+                                        │
+                                        ▼
+                               server/db.js  (better-sqlite3)
+                                        │
+                                        ▼
+                               data/officina.db
 ```
 
 ---
@@ -73,26 +100,48 @@ ciclodesk/
 
 1. Vai su **https://nodejs.org** e scarica la versione **LTS**
 2. Esegui il file e segui l'installazione con le opzioni predefinite
-3. Riavvia il PC
+3. **Riavvia il PC**
 
-Verifica:
+Verifica nel terminale:
 ```bash
 node --version   # v20.x.x o superiore
 npm --version    # 10.x.x o superiore
 ```
 
+---
+
 ### Passo 2 — Copia il progetto
 
-Copia la cartella `ciclodesk` sul PC (es. `C:\ciclodesk`).
+Copia la cartella `ciclodesk` sul PC che farà da server.
+
+Percorso consigliato:
+```
+Windows:   C:\ciclodesk\
+Mac/Linux: /home/tuonome/ciclodesk/
+```
+
+---
 
 ### Passo 3 — Installa le dipendenze
 
 ```bash
+# Windows
 cd C:\ciclodesk
+npm install
+
+# Mac/Linux
+cd /home/tuonome/ciclodesk
 npm install
 ```
 
-> ⚠️ Va fatto **una sola volta**.
+Al termine vedrai:
+```
+added 42 packages in 8s
+```
+
+> ⚠️ Va fatto **una sola volta**. Non serve ripeterlo ai successivi avvii.
+
+---
 
 ### Passo 4 — Primo avvio
 
@@ -106,171 +155,667 @@ Output atteso:
 
    💻  PC locale  → http://localhost:3000
    📱  Telefono   → http://192.168.1.15:3000
+
+   (tutti i dispositivi devono essere sulla stessa rete Wi-Fi)
 ```
+
+Apri il browser e vai su **http://localhost:3000** — CicloDesk è pronto.
 
 ---
 
 ## 4. Avvio del server
 
-| Metodo | Come |
-|---|---|
-| **Windows** | Doppio clic su `start.bat` |
-| **Mac/Linux** | `bash start.sh` nel terminale |
-| **Terminale** | `cd ciclodesk && npm start` |
+### Metodo A — Doppio clic (Windows, il più semplice)
 
-> **Non chiudere la finestra del terminale** mentre usi il gestionale.
+Fai doppio clic su **`start.bat`** nella cartella del progetto.
+**Non chiudere la finestra nera** finché usi il gestionale.
 
-### Avvio automatico con Windows
+### Metodo B — Terminale (Mac/Linux o preferenza)
 
-1. `Win + R` → `shell:startup` → Invio
+```bash
+cd ciclodesk
+npm start
+```
+
+### Metodo C — Avvio automatico all'accensione del PC (Windows)
+
+1. Premi `Win + R` → digita `shell:startup` → premi Invio
 2. Copia `start.bat` nella cartella che si apre
+3. Da ora il server parte automaticamente ad ogni accensione
+
+### Arresto del server
+
+Nella finestra del terminale premi **`Ctrl + C`**.
 
 ---
 
 ## 5. Accesso da telefono o tablet
 
-1. PC e telefono sulla **stessa rete Wi-Fi**
-2. Apri il browser sul telefono → `http://192.168.1.X:3000` (IP mostrato in console)
+1. PC e telefono devono essere sulla **stessa rete Wi-Fi**
+2. Guarda l'IP mostrato in console all'avvio (es. `192.168.1.15`)
+3. Apri il browser sul telefono e digita: **`http://192.168.1.15:3000`**
 
-> 💡 Aggiungi alla schermata Home:
-> - **Safari** → Condividi → "Aggiungi a schermata Home"
-> - **Chrome** → menu ⋮ → "Aggiungi a schermata Home"
+> 💡 **Aggiungi alla schermata Home per usarla come app:**
+> - **Safari (iPhone)** → icona Condividi → "Aggiungi a schermata Home"
+> - **Chrome (Android)** → menu ⋮ → "Aggiungi a schermata Home"
 
----
-
-## 6. Descrizione dei moduli
-
-### Backend
-
-| File | Responsabilità |
-|---|---|
-| `server/index.js` | Avvia Express, serve i file statici, mostra IP LAN |
-| `server/db.js` | Schema SQLite, seed lavorazioni predefinite |
-| `server/routes/clienti.js` | CRUD clienti, DELETE a cascata sugli ordini |
-| `server/routes/ordini.js` | CRUD ordini, voci serializzate in JSON |
-| `server/routes/lavorazioni.js` | CRUD catalogo lavorazioni |
-
-### Frontend
-
-| File | Responsabilità |
-|---|---|
-| `public/js/db.js` | Tutte le chiamate fetch() verso /api/* |
-| `public/js/clienti.js` | getAll, findById, cerca, salva, elimina |
-| `public/js/lavorazioni.js` | getAll, findById, salva, elimina |
-| `public/js/ordini.js` | Ciclo di vita ordine: apertura → voci → chiusura |
-| `public/js/ui.js` | Rendering HTML, modali, form |
-| `public/js/app.js` | Bootstrap, navigazione, eventi globali, toast errori |
+> ⚠️ L'IP del PC può cambiare se il router viene riavviato.
+> Per un IP fisso, configura un **IP statico** nelle impostazioni di rete del PC.
 
 ---
 
-## 7. API REST — Riferimento
+## 6. Tecnologie usate
 
-Base URL: `http://localhost:3000/api`
-
-### Clienti
-| Metodo | Endpoint | Descrizione |
+| Tecnologia | Cos'è | Dove viene usata |
 |---|---|---|
-| GET | `/api/clienti` | Lista tutti |
-| GET | `/api/clienti/:id` | Dettaglio |
-| POST | `/api/clienti` | Crea |
-| PUT | `/api/clienti/:id` | Aggiorna |
-| DELETE | `/api/clienti/:id` | Elimina (+ ordini) |
-
-### Ordini
-| Metodo | Endpoint | Descrizione |
-|---|---|---|
-| GET | `/api/ordini` | Lista tutti |
-| GET | `/api/ordini/:id` | Dettaglio |
-| POST | `/api/ordini` | Crea |
-| PUT | `/api/ordini/:id` | Aggiorna / chiudi / riapri |
-| DELETE | `/api/ordini/:id` | Elimina |
-
-### Lavorazioni
-| Metodo | Endpoint | Descrizione |
-|---|---|---|
-| GET | `/api/lavorazioni` | Lista catalogo |
-| GET | `/api/lavorazioni/:id` | Dettaglio |
-| POST | `/api/lavorazioni` | Aggiungi |
-| PUT | `/api/lavorazioni/:id` | Modifica |
-| DELETE | `/api/lavorazioni/:id` | Rimuovi |
+| **Node.js** | Runtime JavaScript lato server | Esegue tutto il backend |
+| **Express.js** | Framework web per Node.js | Gestisce le route HTTP |
+| **SQLite** | Database relazionale in un singolo file | Salva tutti i dati |
+| **better-sqlite3** | Libreria Node per SQLite sincrona | `server/db.js` |
+| **HTML5** | Linguaggio markup | Struttura della pagina |
+| **CSS3** | Fogli di stile con variabili CSS | Layout e grafica |
+| **JavaScript ES2020** | Linguaggio frontend moderno | Tutta la logica client |
+| **Fetch API** | API browser per chiamate HTTP | `public/js/db.js` |
+| **async/await** | Sintassi JavaScript asincrona | Tutti i moduli frontend |
 
 ---
 
-## 8. Database
+## 7. Descrizione dettagliata dei moduli
 
-File: `data/officina.db`
+### Mappa generale
 
-```sql
-CREATE TABLE clienti (
-  id TEXT PRIMARY KEY, nome TEXT NOT NULL,
-  telefono TEXT, email TEXT, bici TEXT, note TEXT,
-  createdAt TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE lavorazioni (
-  id TEXT PRIMARY KEY, nome TEXT NOT NULL,
-  prezzo REAL DEFAULT 0, descrizione TEXT
-);
-
-CREATE TABLE ordini (
-  id TEXT PRIMARY KEY, clienteId TEXT NOT NULL,
-  stato TEXT DEFAULT 'aperto',
-  dataIngresso TEXT, dataUscita TEXT,
-  note TEXT, voci TEXT DEFAULT '[]', totale REAL DEFAULT 0,
-  FOREIGN KEY (clienteId) REFERENCES clienti(id)
-);
+```
+┌─────────────────────────────────────────────────────────┐
+│                    BROWSER                              │
+│  index.html → carica CSS + 6 file JS in sequenza        │
+│                                                         │
+│  db.js → lavorazioni.js → clienti.js                   │
+│       → ordini.js → ui.js → app.js                     │
+└────────────────────┬────────────────────────────────────┘
+                     │ HTTP fetch() JSON
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│                    SERVER (Node.js)                     │
+│  index.js → routes/clienti.js                          │
+│           → routes/ordini.js                           │
+│           → routes/lavorazioni.js                      │
+│                     │                                   │
+│                  db.js (SQLite)                         │
+└────────────────────┬────────────────────────────────────┘
+                     │ lettura/scrittura file
+                     ▼
+              data/officina.db
 ```
 
 ---
 
-## 9. Backup e ripristino
+### 🖥️ BACKEND
+
+---
+
+#### `server/index.js` — Il punto di ingresso
+
+**Tecnologie:** Node.js, Express.js, modulo `os` di Node
+
+```
+Cosa fa:
+1. Crea il server Express
+2. Abilita la lettura del JSON in arrivo
+3. Serve i file statici della cartella /public
+4. Registra le 3 route API
+5. Si mette in ascolto sulla porta 3000
+6. Calcola l'IP locale e lo stampa in console
+```
+
+**Concetti chiave:**
+
+- **`express()`** — crea l'applicazione web
+- **`express.json()`** — middleware che trasforma automaticamente il body JSON delle richieste in oggetto JavaScript
+- **`express.static()`** — serve HTML, CSS, JS dalla cartella `public/` senza scrivere route manualmente
+- **`app.listen('0.0.0.0')`** — ascolta su tutte le interfacce di rete, così è raggiungibile anche dal telefono in Wi-Fi
+- **`os.networkInterfaces()`** — funzione Node.js che legge le schede di rete del PC per trovare l'IP locale
+
+---
+
+#### `server/db.js` — Il database
+
+**Tecnologie:** better-sqlite3, Node.js (`fs`, `path`)
+
+```
+Cosa fa:
+1. Crea la cartella /data se non esiste
+2. Apre (o crea) il file officina.db
+3. Attiva ottimizzazioni di performance (WAL)
+4. Crea le 3 tabelle se non esistono già
+5. Inserisce 13 lavorazioni predefinite al primo avvio
+6. Esporta la connessione al database
+```
+
+**Concetti chiave:**
+
+- **`better-sqlite3`** — libreria SQLite **sincrona** per Node.js, più semplice e veloce per query semplici rispetto alle alternative asincrone
+- **`journal_mode = WAL`** — Write-Ahead Logging: permette letture e scritture simultanee senza blocchi, fondamentale quando telefono e PC accedono insieme
+- **`foreign_keys = ON`** — SQLite di default disabilita i vincoli di integrità referenziale, questa riga li forza
+- **`CREATE TABLE IF NOT EXISTS`** — crea la tabella solo se non esiste, così lo script può girare più volte senza errori
+- **`db.transaction()`** — raggruppa i 13 INSERT in una transazione atomica (~50x più veloce di INSERT singoli)
+- **`module.exports = db`** — esporta la connessione aperta, così tutti i `routes/*.js` usano **la stessa connessione**
+
+---
+
+#### `server/routes/clienti.js` — API Clienti
+
+**Tecnologie:** Express Router, better-sqlite3
+
+```
+Espone 5 endpoint HTTP:
+
+GET    /api/clienti       → restituisce tutti i clienti
+GET    /api/clienti/:id   → restituisce un singolo cliente
+POST   /api/clienti       → crea un nuovo cliente
+PUT    /api/clienti/:id   → aggiorna un cliente esistente
+DELETE /api/clienti/:id   → elimina cliente e tutti i suoi ordini
+```
+
+**Concetti chiave:**
+
+- **`express.Router()`** — crea un mini-router isolato. In `index.js` viene montato su `/api/clienti`, qui si scrivono solo le parti finali (`/`, `/:id`)
+- **`req.params.id`** — legge il parametro dinamico dall'URL (es. `/api/clienti/abc123` → `id = "abc123"`)
+- **`req.body`** — contiene i dati JSON inviati dal client nel body della richiesta
+- **`res.status(404).json()`** — risponde con codice HTTP 404 e messaggio di errore JSON
+- **`res.status(201)`** — HTTP 201 = "Created", risposta corretta per una POST che crea una risorsa
+- **DELETE a cascata** — prima elimina tutti gli ordini del cliente, poi il cliente stesso. Necessario con foreign keys attive
+
+---
+
+#### `server/routes/ordini.js` — API Ordini
+
+**Tecnologie:** Express Router, better-sqlite3, `JSON.stringify/parse`
+
+```
+Espone 5 endpoint HTTP per gestire gli ordini.
+Peculiarità: le voci di lavorazione sono un array
+salvato come stringa JSON nella colonna "voci".
+```
+
+**Concetti chiave:**
+
+- **Voci come JSON serializzato** — SQLite non ha un tipo "array". Le voci vengono salvate con `JSON.stringify([...])` e rilette con `JSON.parse(...)`. Alternativa sarebbe una tabella separata `voci_ordine`, ma per questa scala la serializzazione è sufficiente
+- **Funzione `parse(row)`** — ogni volta che si legge un ordine dal DB, converte automaticamente la stringa JSON delle voci in array JavaScript
+- **PUT per chiusura/riapertura** — non esistono endpoint separati `/chiudi` e `/riapri`. Si usa la PUT passando `stato: "chiuso"` o `stato: "aperto"` insieme a `dataUscita`
+
+---
+
+#### `server/routes/lavorazioni.js` — API Catalogo
+
+**Tecnologie:** Express Router, better-sqlite3
+
+```
+CRUD completo per il catalogo delle lavorazioni.
+È il modulo più semplice: dati piatti, nessuna relazione complessa.
+```
+
+> **Nota importante:** non ha cascade delete perché le lavorazioni negli ordini sono **snapshot** (copia dei dati al momento della creazione dell'ordine). Eliminare una lavorazione dal catalogo non rompe gli ordini già creati.
+
+---
+
+### 🌐 FRONTEND
+
+---
+
+#### `public/js/db.js` — Il client HTTP
+
+**Tecnologie:** Fetch API (browser nativa), async/await, JSON
+
+```
+È l'unico file del frontend che "parla" con il server.
+Tutti gli altri moduli chiamano questo, mai fetch() direttamente.
+Espone: getAll, findById, create, update, upsert, remove
+```
+
+**Concetti chiave:**
+
+- **`fetch()`** — API nativa dei browser moderni per richieste HTTP, restituisce una Promise
+- **`async/await`** — sintassi moderna per operazioni asincrone, evita il "callback hell"
+- **`_req()` privata** — centralizza tutta la logica: headers, gestione errori HTTP, parse JSON. Le funzioni pubbliche sono una riga ciascuna
+- **`throw new Error()`** — se il server risponde con errore (4xx, 5xx), lancia un errore JavaScript catturato con `try/catch` nei moduli superiori
+- **`BASE = '/api'`** — path relativo senza dominio: funziona sia su `localhost:3000` che su `192.168.1.X:3000` senza modifiche al codice
+
+---
+
+#### `public/js/lavorazioni.js` — Logica Catalogo
+
+**Tecnologie:** JavaScript ES2020, async/await
+
+```
+Fornisce i metodi per lavorare con le lavorazioni.
+Strato intermedio tra interfaccia (ui.js) e trasporto dati (db.js).
+Metodi: getAll, findById, salva, elimina
+```
+
+**Concetti chiave:**
+
+- **Service layer** — contiene la **logica di business**: trasforma e valida i dati prima di inviarli al server (`parseFloat`, `.trim()`). Se si cambia il backend, si modifica solo `db.js` e questo file, non `ui.js` o `app.js`
+
+---
+
+#### `public/js/clienti.js` — Logica Clienti
+
+**Tecnologie:** JavaScript ES2020, async/await
+
+```
+Stessa struttura di lavorazioni.js, con in più
+il metodo cerca() che filtra i clienti lato client.
+Metodi: getAll, findById, cerca, salva, elimina
+```
+
+**Concetti chiave:**
+
+- **`cerca()` lato client** — non fa nuove chiamate al server; scarica tutti i clienti una volta e filtra in memoria con `Array.filter()`. Per centinaia di clienti (scala di una officina) è istantanea e non genera traffico inutile
+- **`Array.filter()` + `String.includes()`** — pattern classico per ricerca testuale multicolonna: converte tutto in minuscolo e cerca la query in nome, telefono, email e modello bici contemporaneamente
+
+---
+
+#### `public/js/ordini.js` — Logica Ordini
+
+**Tecnologie:** JavaScript ES2020, async/await
+
+```
+Gestisce l'intero ciclo di vita di un ordine:
+creazione → modifica voci → chiusura → riapertura → eliminazione.
+Contiene anche filtri per stato e calcolo incasso.
+
+Metodi: getAll, findById, getByCliente, getAperti,
+        getChiusiOggi, salva, chiudi, riapri, elimina, calcolaIncasso
+```
+
+**Concetti chiave:**
+
+- **`getAperti()` e `getChiusiOggi()`** — filtrano l'array già scaricato con `Array.filter()`, senza nuove chiamate HTTP
+- **`calcolaIncasso()`** — usa `Array.reduce()` per sommare i totali: pattern funzionale JavaScript per aggregare valori da un array
+- **`chiudi()` e `riapri()`** — prima GET per ottenere l'ordine attuale, poi PUT con i campi aggiornati. Garantisce di non sovrascrivere dati cambiati da un altro dispositivo nel frattempo
+- **Snapshot delle voci** — le voci contengono `nome` e `prezzo` copiati al momento del salvataggio. Se si modifica il prezzo di una lavorazione nel catalogo, gli ordini passati mostrano sempre il prezzo originale
+
+---
+
+#### `public/js/ui.js` — Rendering Interfaccia
+
+**Tecnologie:** JavaScript ES2020, DOM API, async/await, Template Literals
+
+```
+Il modulo più grande. Trasforma i dati in HTML visibile
+e gestisce apertura/chiusura dei modali con i form precompilati.
+
+Funzioni principali:
+- renderDashboard()      → statistiche e lista bici in officina
+- renderClienti()        → lista schede clienti con ricerca
+- renderOrdini()         → lista ordini con filtro stato + ricerca testo
+- renderCatalogo()       → lista lavorazioni del catalogo
+- apriModalCliente()     → apre e precompila il form cliente
+- apriModalOrdine()      → apre ordine con select clienti e lavorazioni
+- apriModalLavorazione() → apre e precompila il form lavorazione
+- aggiungiRigaVoce()     → aggiunge riga dinamica alla tabella voci
+- raccogliVoci()         → legge tutte le righe e le trasforma in array
+```
+
+**Concetti chiave:**
+
+- **Template Literals** (backtick `` ` ``) — HTML multiriga con variabili JavaScript inserite con `${espressione}`. Modo moderno per generare HTML dinamico senza librerie esterne
+- **`innerHTML`** — aggiorna intere sezioni del DOM in un colpo solo con una stringa HTML
+- **`Promise.all([])`** — esegue più chiamate async **in parallelo**. Es. `renderDashboard()` fa 3 chiamate API contemporaneamente, riducendo il tempo da `t1+t2+t3` a `max(t1,t2,t3)`
+- **`Object.fromEntries()`** — trasforma l'array clienti in dizionario `{ id: cliente }` per lookup O(1) invece di `find()` ripetuto O(n²)
+- **Event listener su righe dinamiche** — i listener di ogni riga voci (`change`, `input`, `click`) vengono aggiunti direttamente all'elemento TR appena creato
+- **Modali con classe `hidden`** — i modali esistono sempre nel DOM; aprirli significa solo rimuovere la classe CSS `hidden`, senza creare elementi nuovi
+
+---
+
+#### `public/js/app.js` — Bootstrap e Coordinamento
+
+**Tecnologie:** JavaScript ES2020, DOM API, async/await, Event Delegation
+
+```
+Il "direttore d'orchestra". Non contiene logica di business
+né rendering. Si occupa esclusivamente di:
+
+1. Aspettare che la pagina sia caricata (DOMContentLoaded)
+2. Gestire la navigazione tra le 4 view
+3. Collegare i bottoni alle funzioni giuste
+4. Gestire i submit dei 3 form
+5. Mostrare errori all'utente (toast rosso)
+```
+
+**Concetti chiave:**
+
+- **`DOMContentLoaded`** — evento che scatta quando il browser ha finito di costruire il DOM (albero degli elementi HTML)
+- **Event Delegation** — un solo listener su `document` gestisce tutti i click delle card dinamiche. Si usa `closest('[data-action]')` per risalire l'albero DOM e trovare il bottone. Più efficiente e funziona su elementi creati dopo il caricamento della pagina
+- **`data-action` e `data-id`** — attributi HTML personalizzati usati come "messaggi" tra HTML e JavaScript. Il rendering li inserisce nell'HTML, l'event delegation li legge con `btn.dataset.action` e `btn.dataset.id`
+- **Toast di errore** — `<div>` creato al volo, aggiunto al DOM, rimosso automaticamente dopo 4 secondi con `setTimeout`. Zero librerie esterne
+- **`currentView`** — variabile che traccia la view attiva, usata da `refreshView()` per sapere quale lista aggiornare dopo ogni operazione (salvataggio, eliminazione, ecc.)
+
+---
+
+## 8. Come comunicano tra loro
+
+### Schema visivo completo
+
+```
+┌──────────────────────────────────────────────────────┐
+│  FRONTEND (browser)                                  │
+│                                                      │
+│  app.js ──────► ui.js ◄─────────────────────┐       │
+│    │             │                           │       │
+│    │    render   │  apriModal                │       │
+│    │             ▼                           │       │
+│    │         DOM / HTML                      │       │
+│    │                                         │       │
+│    ├──► clienti.js ──┐                       │       │
+│    ├──► ordini.js ───┼──► db.js (fetch) ─────┘       │
+│    └──► lavoraz..js ─┘      │                        │
+│                             │ HTTP JSON               │
+└─────────────────────────────┼────────────────────────┘
+                              │
+┌─────────────────────────────┼────────────────────────┐
+│  BACKEND (Node.js)          ▼                        │
+│                                                      │
+│  index.js ──► routes/clienti.js ──┐                  │
+│           ──► routes/ordini.js ───┼──► db.js         │
+│           ──► routes/lavoraz..js ─┘      │           │
+│                                          │ SQL        │
+└──────────────────────────────────────────┼───────────┘
+                                           │
+                                  data/officina.db
+```
+
+### Esempio completo — Salvataggio di un ordine
+
+```
+1. Utente clicca "Salva Ordine"
+         │
+         ▼
+2. app.js → intercetta il submit del form
+            raccoglie i dati dal DOM
+            chiama OrdiniService.salva(data, voci)
+         │
+         ▼
+3. ordini.js → costruisce l'oggetto record
+               calcola il totale con reduce()
+               chiama DB.create('ordini', record)
+         │
+         ▼
+4. db.js → fetch('POST', '/api/ordini', record)
+           serializza in JSON e invia al server
+         │
+         ▼  [rete HTTP locale Wi-Fi]
+         │
+         ▼
+5. routes/ordini.js → riceve req.body
+                      esegue INSERT su SQLite
+                      risponde con l'ordine creato (JSON)
+         │
+         ▼  [risposta JSON]
+         │
+         ▼
+6. db.js → riceve la risposta
+           fa JSON.parse() automatico
+           restituisce l'oggetto a ordini.js
+         │
+         ▼
+7. app.js → chiude il modale
+            chiama refreshView()
+         │
+         ▼
+8. ui.js → chiama OrdiniService.getAll()
+           rigenera l'HTML della lista ordini
+           aggiorna il DOM con innerHTML
+         │
+         ▼
+9. Utente vede il nuovo ordine nella lista ✅
+```
+
+---
+
+## 9. API REST — Riferimento
+
+Base URL: `http://localhost:3000/api`
+
+Tutte le API accettano e restituiscono **JSON**.
+
+### Clienti
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| `GET` | `/api/clienti` | Lista tutti i clienti (ordinati per nome) |
+| `GET` | `/api/clienti/:id` | Dettaglio singolo cliente |
+| `POST` | `/api/clienti` | Crea nuovo cliente |
+| `PUT` | `/api/clienti/:id` | Aggiorna cliente esistente |
+| `DELETE` | `/api/clienti/:id` | Elimina cliente e tutti i suoi ordini |
+
+**Corpo POST/PUT:**
+```json
+{
+  "nome":     "Mario Rossi",
+  "telefono": "+39 333 1234567",
+  "email":    "mario@example.com",
+  "bici":     "Trek FX3",
+  "note":     "Cliente abituale"
+}
+```
+
+---
+
+### Ordini
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| `GET` | `/api/ordini` | Lista tutti gli ordini (dal più recente) |
+| `GET` | `/api/ordini/:id` | Dettaglio singolo ordine |
+| `POST` | `/api/ordini` | Crea nuovo ordine |
+| `PUT` | `/api/ordini/:id` | Aggiorna / chiudi / riapri ordine |
+| `DELETE` | `/api/ordini/:id` | Elimina ordine |
+
+**Corpo POST/PUT:**
+```json
+{
+  "clienteId":    "abc123",
+  "stato":        "aperto",
+  "dataIngresso": "2026-05-14T09:00:00.000Z",
+  "dataUscita":   null,
+  "note":         "Cambio che salta",
+  "voci": [
+    {
+      "lavorazioneId": "lav_004",
+      "nome":          "Regolazione cambio",
+      "note":          "Catena consumata",
+      "prezzo":        12.00
+    }
+  ],
+  "totale": 12.00
+}
+```
+
+**Chiudere un ordine (PUT):**
+```json
+{ "stato": "chiuso", "dataUscita": "2026-05-14T17:30:00.000Z" }
+```
+
+---
+
+### Lavorazioni
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| `GET` | `/api/lavorazioni` | Lista catalogo (ordinato per nome) |
+| `GET` | `/api/lavorazioni/:id` | Dettaglio singola lavorazione |
+| `POST` | `/api/lavorazioni` | Aggiunge lavorazione al catalogo |
+| `PUT` | `/api/lavorazioni/:id` | Modifica lavorazione |
+| `DELETE` | `/api/lavorazioni/:id` | Rimuove dal catalogo |
+
+**Corpo POST/PUT:**
+```json
+{
+  "nome":        "Sostituzione raggi",
+  "prezzo":      20.00,
+  "descrizione": "Per ruota anteriore o posteriore"
+}
+```
+
+---
+
+## 10. Database
+
+File: `data/officina.db`
+
+### Schema tabelle
+
+```sql
+CREATE TABLE clienti (
+  id          TEXT PRIMARY KEY,
+  nome        TEXT NOT NULL,
+  telefono    TEXT DEFAULT '',
+  email       TEXT DEFAULT '',
+  bici        TEXT DEFAULT '',
+  note        TEXT DEFAULT '',
+  createdAt   TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE lavorazioni (
+  id          TEXT PRIMARY KEY,
+  nome        TEXT NOT NULL,
+  prezzo      REAL DEFAULT 0,
+  descrizione TEXT DEFAULT ''
+);
+
+CREATE TABLE ordini (
+  id           TEXT PRIMARY KEY,
+  clienteId    TEXT NOT NULL,
+  stato        TEXT DEFAULT 'aperto',  -- 'aperto' | 'chiuso'
+  dataIngresso TEXT,
+  dataUscita   TEXT,
+  note         TEXT DEFAULT '',
+  voci         TEXT DEFAULT '[]',      -- array JSON serializzato
+  totale       REAL DEFAULT 0,
+  FOREIGN KEY (clienteId) REFERENCES clienti(id)
+);
+```
+
+### Lavorazioni predefinite inserite al primo avvio
+
+| ID | Nome | Prezzo |
+|---|---|---|
+| lav_001 | Tagliando completo | € 35,00 |
+| lav_002 | Riparazione foratura | € 10,00 |
+| lav_003 | Regolazione freni | € 12,00 |
+| lav_004 | Regolazione cambio | € 12,00 |
+| lav_005 | Sostituzione cavo freno | € 8,00 |
+| lav_006 | Sostituzione cavo cambio | € 8,00 |
+| lav_007 | Centratura ruota | € 15,00 |
+| lav_008 | Sostituzione pattini freno | € 6,00 |
+| lav_009 | Pulizia e sgrassaggio | € 20,00 |
+| lav_010 | Sostituzione catena | € 18,00 |
+| lav_011 | Sostituzione copertone | € 14,00 |
+| lav_012 | Revisione movimento centrale | € 22,00 |
+| lav_013 | Altra lavorazione | € 0,00 |
+
+> Tutte le lavorazioni sono modificabili, aggiungibili ed eliminabili dalla sezione **Catalogo Lavorazioni** nell'interfaccia.
+
+### Caratteristiche del database
+
+| Proprietà | Valore |
+|---|---|
+| **Tipo** | SQLite (file singolo) |
+| **Posizione** | `data/officina.db` nella cartella del progetto |
+| **Limite pratico** | Illimitato per uso officina (SQLite gestisce GB di dati) |
+| **Accesso** | Solo tramite il server Node.js, non esposto direttamente |
+| **Backup** | Basta copiare il file `.db` |
+
+---
+
+## 11. Backup e ripristino
 
 ### Backup manuale
+
 ```bash
-# Windows
+# Windows — copia nella cartella Documenti
 copy C:\ciclodesk\data\officina.db C:\Users\TuoNome\Documents\backup-officina.db
 
 # Mac/Linux
 cp ~/ciclodesk/data/officina.db ~/Documents/backup-officina.db
 ```
 
+### Backup automatico Windows (ogni giorno)
+
+Crea il file `backup.bat` nella cartella del progetto:
+
+```batch
+@echo off
+set DATA=%date:~6,4%-%date:~3,2%-%date:~0,2%
+copy "C:\ciclodesk\data\officina.db" "C:\Users\TuoNome\Documents\backup-officina-%DATA%.db"
+echo Backup completato: backup-officina-%DATA%.db
+```
+
+Poi pianificalo con **Utilità di pianificazione** di Windows per eseguirlo ogni sera.
+
 ### Ripristino
-1. Ferma il server (`Ctrl + C`)
-2. Sostituisci `data/officina.db` con il backup
-3. Riavvia con `npm start`
+
+1. Ferma il server (`Ctrl + C` nel terminale)
+2. Sostituisci `data/officina.db` con il file di backup
+3. Riavvia il server con `npm start`
 
 ---
 
-## 10. Risoluzione problemi
+## 12. Risoluzione problemi
 
-| Errore | Soluzione |
-|---|---|
-| `node non riconosciuto` | Reinstalla Node.js e riavvia il PC |
-| `EADDRINUSE porta 3000` | Cambia porta in `server/index.js` o chiudi l'altro processo |
-| Telefono non si connette | Verifica stessa rete Wi-Fi + firewall Windows porta 3000 |
-| `Cannot find module` | Esegui `npm install` nella cartella del progetto |
-| Dati non salvati / errore 500 | Verifica che la cartella `data/` esista e sia scrivibile |
-
----
-
-## 11. Aggiornamenti futuri consigliati
-
-| Funzionalità | Priorità |
-|---|---|
-| Login con password | 🔴 Alta |
-| Stampa / PDF ordine | 🔴 Alta |
-| Backup automatico | 🟡 Media |
-| Storico ordini per cliente | 🟡 Media |
-| Statistiche mensili | 🟢 Bassa |
-| Deploy cloud (accesso remoto) | 🟢 Bassa |
-
----
-
-## Note di versione
-
-| Versione | Data | Note |
+| Errore | Causa | Soluzione |
 |---|---|---|
-| 1.0.0 | 2026-05-13 | Prima versione: clienti, ordini, catalogo, SQLite, LAN |
+| `node non riconosciuto` | Node.js non installato o non nel PATH | Reinstalla Node.js da nodejs.org e riavvia il PC |
+| `EADDRINUSE porta 3000` | Un altro processo usa già la porta 3000 | Vedi comandi sotto, oppure cambia porta in `server/index.js` |
+| Telefono non si connette | Rete diversa o firewall | Verifica stessa rete Wi-Fi + apri porta 3000 nel firewall Windows |
+| `Cannot find module` | Dipendenze non installate | Esegui `npm install` nella cartella del progetto |
+| Dati non salvati / errore 500 | Cartella `data/` non scrivibile | Verifica che la cartella esista e l'utente abbia i permessi |
+| Pagina bianca nel browser | Errore JavaScript | Apri `F12 → Console` e controlla i messaggi rossi |
+
+### Liberare la porta 3000
+
+**Windows:**
+```bash
+netstat -ano | findstr :3000
+taskkill /PID <numero_pid> /F
+```
+
+**Mac/Linux:**
+```bash
+lsof -ti:3000 | xargs kill -9
+```
+
+### Cambiare la porta del server
+
+Modifica `server/index.js`:
+```javascript
+const PORT = process.env.PORT || 3001;  // cambia 3000 con la porta desiderata
+```
 
 ---
-*CicloDesk v1.0.0*
+
+## 13. Aggiornamenti futuri consigliati
+
+| Funzionalità | Priorità | Descrizione |
+|---|---|---|
+| **Login con password** | 🔴 Alta | Proteggere i dati da accessi non autorizzati nella rete |
+| **Stampa / PDF ordine** | 🔴 Alta | Ricevuta da consegnare al cliente a fine lavori |
+| **Backup automatico su cloud** | 🟡 Media | Copia automatica su Google Drive o Dropbox |
+| **Storico ordini per cliente** | 🟡 Media | Vista dedicata con tutti gli interventi passati |
+| **Notifiche pronto-ritiro** | 🟡 Media | SMS o WhatsApp tramite API Twilio quando la bici è pronta |
+| **Statistiche mensili** | 🟢 Bassa | Grafici incassi e lavorazioni più frequenti |
+| **Gestione magazzino ricambi** | 🟢 Bassa | Scorte camere d'aria, catene, pastiglie, ecc. |
+| **Deploy cloud** | 🟢 Bassa | Accesso da fuori rete (Railway, Render — gratuiti) |
+
+---
+
+## 14. Note di versione
+
+| Versione | Data | Modifiche |
+|---|---|---|
+| **1.0.0** | 2026-05-14 | Prima versione completa: clienti, ordini, catalogo lavorazioni, persistenza SQLite, accesso LAN multi-dispositivo, ricerca e filtri |
+
+---
+
+*🚲 CicloDesk v1.0.0 — Gestionale per ciclo officina*
