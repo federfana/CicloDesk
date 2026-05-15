@@ -205,6 +205,14 @@ main {
     border-top: 4px solid var(--primary);
 }
 
+.stat-card-pronto {
+    border-top-color: var(--success);
+}
+
+.stat-card-pronto .stat-num {
+    color: var(--success);
+}
+
 .stat-num {
     font-size: 2rem;
     font-weight: 700;
@@ -216,33 +224,6 @@ main {
     color: var(--muted);
     margin-top: .3rem;
     text-align: center;
-}
-
-/* ── Incasso toggle ───────────────────────────────────────── */
-.stat-incasso-row {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-}
-
-.btn-eye {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 1.1rem;
-    padding: 0;
-    line-height: 1;
-    opacity: .5;
-    transition: opacity .15s, transform .15s;
-}
-
-.btn-eye:hover {
-    opacity: 1;
-    transform: scale(1.15);
-}
-
-.btn-eye:active {
-    transform: scale(.95);
 }
 
 /* ── Card List ────────────────────────────────────────────── */
@@ -263,6 +244,24 @@ main {
     gap: .4rem;
 }
 
+/* Bordi card per ogni stato ordine */
+.card.stato-accettata {
+    border-left-color: #0ea5e9;
+}
+
+.card.stato-in_lavorazione {
+    border-left-color: var(--warning);
+}
+
+.card.stato-pronto {
+    border-left-color: var(--success);
+}
+
+.card.stato-consegnata {
+    border-left-color: #cbd5e1;
+}
+
+/* Compatibilità con vecchi stati */
 .card.stato-aperto {
     border-left-color: var(--warning);
 }
@@ -289,6 +288,7 @@ main {
     color: var(--muted);
 }
 
+/* ── Badge stato ordine ───────────────────────────────────── */
 .card-badge {
     font-size: .75rem;
     padding: .2rem .6rem;
@@ -296,6 +296,27 @@ main {
     font-weight: 600;
 }
 
+.badge-accettata {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.badge-in-lavorazione {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.badge-pronto {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.badge-consegnata {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+/* Compatibilità vecchi badge */
 .badge-aperto {
     background: #fef3c7;
     color: var(--warning);
@@ -310,6 +331,35 @@ main {
     display: flex;
     gap: .4rem;
     flex-wrap: wrap;
+}
+
+/* ── Badge tipo bici ──────────────────────────────────────── */
+.tag-tipo {
+    display: inline-block;
+    font-size: .72rem;
+    padding: .15rem .5rem;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.tag-strada {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.tag-mtb {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.tag-emtb {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.tag-ebike {
+    background: #e0f2fe;
+    color: #075985;
 }
 
 /* ── Search & Filter ──────────────────────────────────────── */
@@ -337,12 +387,22 @@ main {
     gap: 1.2rem;
     margin-bottom: 1rem;
     font-size: .9rem;
+    align-items: center;
 }
 
 .filter-bar label {
     display: flex;
     align-items: center;
-    gap: .3rem;
+    gap: .4rem;
+    cursor: pointer;
+}
+
+.filter-bar select {
+    padding: .35rem .7rem;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: .9rem;
+    background: #fff;
     cursor: pointer;
 }
 
@@ -585,12 +645,20 @@ textarea:focus {
     box-shadow: var(--shadow);
 }
 
-.storico-ordine-card.stato-aperto {
+.storico-ordine-card.stato-accettata {
+    border-left-color: #0ea5e9;
+}
+
+.storico-ordine-card.stato-in_lavorazione {
     border-left-color: var(--warning);
 }
 
-.storico-ordine-card.stato-chiuso {
+.storico-ordine-card.stato-pronto {
     border-left-color: var(--success);
+}
+
+.storico-ordine-card.stato-consegnata {
+    border-left-color: #cbd5e1;
 }
 
 .storico-ordine-header {
