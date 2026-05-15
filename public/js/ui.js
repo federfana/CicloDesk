@@ -345,7 +345,7 @@ const UI = (() => {
     `).join('');
   }
 
-  async function apriModalAggiungi Bici(clienteId) {
+  async function apriModalAggiunggiBici(clienteId) {
     document.getElementById('bici-cliente-id-hidden').value = clienteId;
     document.getElementById('form-aggiungi-bici').reset();
     openModal('modal-aggiungi-bici');
@@ -494,7 +494,7 @@ const UI = (() => {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
     apriModalStorico, filtraStorico,
-    apriModalBiciCliente, apriModalAggiungi Bici,
+    apriModalBiciCliente, apriModalAggiunggiBici,
     aggiungiRigaVoce, raccogliVoci, aggiornaIncasso,
     openModal, closeAllModals,
   };
