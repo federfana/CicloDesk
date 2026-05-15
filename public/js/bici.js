@@ -13,11 +13,14 @@ const BiciService = (() => {
 
   async function salva(data) {
     const record = {
-      clienteId: data.clienteId,
-      modello:   (data.modello || '').trim(),
-      marca:     (data.marca   || '').trim(),
-      colore:    (data.colore  || '').trim(),
-      note:      (data.note    || '').trim(),
+      clienteId:             data.clienteId,
+      marca:                 (data.marca   || '').trim(),
+      modello:               (data.modello || '').trim(),
+      tipo:                  data.tipo     || 'strada',
+      colore:                (data.colore  || '').trim(),
+      seriale_forcella:      (data.seriale_forcella      || '').trim(),
+      seriale_ammortizzatore:(data.seriale_ammortizzatore || '').trim(),
+      note:                  (data.note    || '').trim(),
     };
     if (data.id) return DB.update('bici', data.id, record);
     return DB.create('bici', record);
