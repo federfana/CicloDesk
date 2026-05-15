@@ -47,6 +47,7 @@ const UI = (() => {
     mtb:    { label: '🏔️ MTB',      cls: 'tag-tipo tag-mtb'    },
     emtb:   { label: '⚡🏔️ E-MTB',  cls: 'tag-tipo tag-emtb'   },
     ebike:  { label: '⚡ E-Bike',    cls: 'tag-tipo tag-ebike'  },
+    monopattino_e: { label: '⚡🛴 Monopattino Elett.', cls: 'tag-tipo tag-monopattino-e' },
   };
   function tagTipo(tipo) {
     const t = TIPO_CFG[tipo] || TIPO_CFG.strada;
