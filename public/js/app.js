@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getOrdiniFilter() {
-    return document.querySelector('input[name="filter-ordini"]:checked')?.value || 'tutti';
+    return document.getElementById('filter-ordini').value || 'tutti';
   }
   function getOrdiniQuery() {
     return document.getElementById('search-ordini').value;
@@ -48,17 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => showView(btn.dataset.view))
   );
 
-  // ── Toggle visibilità incasso ─────────────────────────────────
-  document.getElementById('btn-toggle-incasso').addEventListener('click', () => {
-    const visibile   = localStorage.getItem('incasso_visible') !== 'false';
-    const nuovoStato = !visibile;
-    localStorage.setItem('incasso_visible', nuovoStato);
-    const el     = document.getElementById('stat-num-revenue');
-    const valore = el.dataset.valore || '€ 0,00';
-    el.textContent = nuovoStato ? valore : '€ ••••';
-    document.getElementById('btn-toggle-incasso').textContent = nuovoStato ? '👁' : '🙈';
-  });
-
   // ── Ricerca ───────────────────────────────────────────────────
   document.getElementById('search-clienti').addEventListener('input', e =>
     UI.renderClienti(e.target.value).catch(showError)
@@ -66,10 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('search-ordini').addEventListener('input', () =>
     UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery()).catch(showError)
   );
-  document.querySelectorAll('input[name="filter-ordini"]').forEach(r =>
-    r.addEventListener('change', () =>
-      UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery()).catch(showError)
-    )
+  document.getElementById('filter-ordini').addEventListener('change', () =>
+    UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery()).catch(showError)
   );
   document.getElementById('search-storico').addEventListener('input', e =>
     UI.filtraStorico(e.target.value)
@@ -107,7 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.apriModalLavorazione().catch(showError)
   );
 
-  // ── Bottone "+ Aggiungi Bici" nel modal bici cliente ──────────
   document.getElementById('btn-aggiungi-bici').addEventListener('click', () => {
     const clienteId = document.getElementById('bici-cliente-id-hidden').value;
     UI.apriModalAggiungiBici(clienteId).catch(showError);
@@ -143,13 +129,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // ── Bici
         case 'bici-cliente':
           await UI.apriModalBiciCliente(id); break;
-
         case 'edit-bici': {
           const clienteId = document.getElementById('bici-cliente-id-hidden').value;
           await UI.apriModalAggiungiBici(clienteId, id);
           break;
         }
-
         case 'del-bici':
           if (confirm('Eliminare questa bici? Gli ordini collegati non verranno eliminati.')) {
             await BiciService.elimina(id);
@@ -168,8 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
             await refreshView(currentView);
           }
           break;
-        case 'chiudi-ordine':
-          await OrdiniService.chiudi(id);
+        case 'avanza-ordine':
+          await OrdiniService.avanza(id);
           await refreshView(currentView);
           break;
         case 'riapri-ordine':
@@ -230,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         id:           ordineId,
         clienteId,
         biciId:       document.getElementById('ordine-bici-id').value || null,
-        stato:        esistente?.stato      || 'aperto',
+        stato:        esistente?.stato      || 'accettata',
         dataIngresso: document.getElementById('ordine-data-ingresso').value
                       ? new Date(document.getElementById('ordine-data-ingresso').value).toISOString()
                       : new Date().toISOString(),
@@ -238,15 +222,13 @@ document.addEventListener('DOMContentLoaded', () => {
         note:         document.getElementById('ordine-note').value,
       }, voci);
 
-      // Controlla se lo storico era aperto prima di chiudere tutto
-      const storicoModal    = document.getElementById('modal-storico');
-      const storicoAperto   = !storicoModal.classList.contains('hidden');
+      const storicoModal     = document.getElementById('modal-storico');
+      const storicoAperto    = !storicoModal.classList.contains('hidden');
       const storicoClienteId = storicoModal.dataset.clienteId;
 
       UI.closeAllModals();
 
       if (storicoAperto && storicoClienteId) {
-        // Riapri lo storico aggiornato invece di refreshare la view
         await UI.apriModalStorico(storicoClienteId);
       } else {
         await refreshView(currentView);
@@ -279,15 +261,17 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const clienteId = document.getElementById('bici-cliente-id-hidden').value;
       await BiciService.salva({
-        id:       document.getElementById('bici-id').value || null,
+        id:                    document.getElementById('bici-id').value || null,
         clienteId,
+        marca:                 document.getElementById('bici-marca').value,
         modello,
-        marca:  document.getElementById('bici-marca').value,
-        colore: document.getElementById('bici-colore').value,
-        note:   document.getElementById('bici-note').value,
+        tipo:                  document.getElementById('bici-tipo').value,
+        colore:                document.getElementById('bici-colore').value,
+        seriale_forcella:      document.getElementById('bici-ser-forcella').value,
+        seriale_ammortizzatore:document.getElementById('bici-ser-ammortizzatore').value,
+        note:                  document.getElementById('bici-note').value,
       });
       UI.closeAllModals();
-      // Riapri il modal bici del cliente con la lista aggiornata
       await UI.apriModalBiciCliente(clienteId);
     } catch (e) { showError(e.message); }
   });
