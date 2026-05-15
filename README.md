@@ -1,6 +1,6 @@
 # 🚲 CicloDesk — Documentazione Completa
 
-> Gestionale per ciclo officina: schede clienti, ordini di lavoro, catalogo lavorazioni, storico interventi.
+> Gestionale per ciclo officina: schede clienti, gestione multi-bici, ordini di lavoro, catalogo lavorazioni, storico interventi.
 > Tecnologie: **Node.js · Express · SQLite · HTML/CSS/JS vanilla**
 
 ---
@@ -29,7 +29,7 @@
 
 | Componente | Versione minima | Note |
 |---|---|---|
-| **Node.js** | 18.x LTS o superiore | https://nodejs.org |
+| **Node.js** | 18.x LTS o superiore | https://nodejs.org — **NON usare v21/v22/v24** |
 | **npm** | incluso con Node.js | — |
 | **Sistema operativo** | Windows 10 / macOS 12 / Ubuntu 20.04 | — |
 | **Browser** | Chrome 90+ / Firefox 90+ / Safari 15+ / Edge 90+ | Su tutti i dispositivi |
@@ -37,6 +37,8 @@
 
 > ℹ️ Internet serve solo per la prima installazione di Node.js e delle dipendenze npm.
 > Il gestionale funziona completamente **offline** in rete locale.
+
+> ⚠️ Usare la versione **20.x LTS** di Node.js. Le versioni 21, 22 e 24 non sono compatibili con `better-sqlite3` e causano errori durante `npm install`.
 
 ---
 
@@ -47,18 +49,19 @@ ciclodesk/
 ├── package.json              # Dipendenze e script npm
 ├── start.bat                 # Avvio rapido Windows (doppio clic)
 ├── start.sh                  # Avvio rapido Mac/Linux
-├── CICLODESK_COMPLETO.md     # Questo file
+├── README.md                 # Questo file
 │
 ├── data/                     # Creata automaticamente all'avvio
 │   └── officina.db           # Database SQLite (tutti i dati)
 │
 ├── server/
 │   ├── index.js              # Entry point — server Express
-│   ├── db.js                 # Connessione SQLite, schema, seed dati
+│   ├── db.js                 # Connessione SQLite, schema, seed, migrazioni
 │   └── routes/
 │       ├── clienti.js        # GET/POST/PUT/DELETE /api/clienti
 │       ├── ordini.js         # GET/POST/PUT/DELETE /api/ordini
-│       └── lavorazioni.js    # GET/POST/PUT/DELETE /api/lavorazioni
+│       ├── lavorazioni.js    # GET/POST/PUT/DELETE /api/lavorazioni
+│       └── bici.js           # GET/POST/PUT/DELETE /api/bici
 │
 └── public/
     ├── index.html            # Pagina principale (SPA)
@@ -70,6 +73,7 @@ ciclodesk/
         ├── db.js             # Client HTTP (fetch → API server)
         ├── lavorazioni.js    # Logica catalogo lavorazioni
         ├── clienti.js        # Logica schede clienti
+        ├── bici.js           # Logica gestione bici per cliente
         ├── ordini.js         # Logica ordini di lavoro
         ├── ui.js             # Rendering interfaccia e modali
         └── app.js            # Bootstrap, navigazione, eventi globali
@@ -86,7 +90,8 @@ server/index.js  (Express — porta 3000)
         │
         ├── /api/clienti     → server/routes/clienti.js
         ├── /api/ordini      → server/routes/ordini.js
-        └── /api/lavorazioni → server/routes/lavorazioni.js
+        ├── /api/lavorazioni → server/routes/lavorazioni.js
+        └── /api/bici        → server/routes/bici.js
                                         │
                                         ▼
                                server/db.js  (better-sqlite3)
@@ -95,21 +100,35 @@ server/index.js  (Express — porta 3000)
                                data/officina.db
 ```
 
+### Relazioni tra le tabelle
+
+```
+clienti (1) ──────────────────── (N) bici
+    │                                  │
+    │ (1)                              │ (N)
+    └──────────── (N) ordini ──────────┘
+                    biciId (nullable)
+```
+
+Ogni bici appartiene direttamente a un cliente (`clienteId`). Gli ordini collegano un cliente a una bici specifica tramite `biciId` (opzionale).
+
 ---
 
 ## 3. Installazione passo per passo
 
 ### Passo 1 — Installa Node.js
 
-1. Vai su **https://nodejs.org** e scarica la versione **LTS**
+1. Vai su **https://nodejs.org** e scarica la versione **LTS** (20.x)
 2. Esegui il file e segui l'installazione con le opzioni predefinite
 3. **Riavvia il PC**
 
-Verifica nel terminale:
+Verifica nel terminale (usa il **Prompt dei comandi cmd**, non PowerShell):
 ```bash
-node --version   # v20.x.x o superiore
+node --version   # deve mostrare v20.x.x
 npm --version    # 10.x.x o superiore
 ```
+
+> ⚠️ Se `npm install` dà errore "l'esecuzione di script è disabilitata", usa il **Prompt dei comandi (cmd)** invece di PowerShell. Il cmd non ha questo blocco.
 
 ---
 
@@ -127,13 +146,10 @@ Mac/Linux: /home/tuonome/ciclodesk/
 
 ### Passo 3 — Installa le dipendenze
 
-```bash
-# Windows
-cd C:\ciclodesk
-npm install
+Apri il **Prompt dei comandi (cmd)**:
 
-# Mac/Linux
-cd /home/tuonome/ciclodesk
+```batch
+cd C:\ciclodesk
 npm install
 ```
 
@@ -231,12 +247,21 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 - Lista bici attualmente in officina con accesso rapido a modifica e chiusura ordine
 
 ### Schede Clienti
-- Anagrafica completa: nome, telefono, email, modello bici, note libere
-- Ricerca live su tutti i campi (nome, telefono, email, bici)
+- Anagrafica completa: nome, telefono, email, note libere
+- Ricerca live su tutti i campi (nome, telefono, email)
 - Totale speso e numero interventi attivi mostrati in ogni card
-- Accesso rapido a **Storico interventi**, **Nuovo ordine**, modifica ed eliminazione
+- Accesso rapido a **🚲 Bici**, **📋 Storico**, **+ Ordine**, modifica ed eliminazione
 
-### 📋 Storico Interventi per Cliente
+### 🚲 Gestione Multi-Bici per Cliente *(v1.2.0)*
+- Ogni cliente può avere **più bici** registrate con scheda dedicata
+- Apertura dal bottone **"🚲 Bici"** nella scheda cliente
+- Per ogni bici: **modello** (obbligatorio), marca, colore, note
+- Aggiunta, modifica ed eliminazione bici con modal dedicato
+- Nel form **Nuovo Ordine**, dopo aver selezionato il cliente appare un **select dinamico** con le sue bici
+- La bici viene mostrata in ogni card ordine e nello storico interventi
+- Eliminare una bici **non elimina gli ordini** collegati (il campo `biciId` diventa NULL, i dati storici restano intatti)
+
+### 📋 Storico Interventi per Cliente *(v1.1.0)*
 - Aperto dal bottone **"📋 Storico"** nella scheda cliente
 - **5 statistiche riepilogative:**
   - Interventi totali
@@ -245,12 +270,12 @@ Nella finestra del terminale premi **`Ctrl + C`**.
   - Spesa media per intervento
   - Data ultimo ingresso
 - Lista completa di tutti gli ordini del cliente, dal più recente al più vecchio
-- Ogni ordine mostra: date ingresso/uscita, stato, lavorazioni, note, totale
-- **Ricerca live** tra gli interventi (per lavorazione, note, data)
+- Ogni ordine mostra: date ingresso/uscita, bici associata, stato, lavorazioni, note, totale
+- **Ricerca live** tra gli interventi (per lavorazione, bici, note, data)
 - Modifica rapida di ogni ordine direttamente dallo storico
 
 ### Ordini di Lavoro
-- Creazione ordine con selezione cliente e lavorazioni dal catalogo
+- Creazione ordine con selezione cliente, bici specifica e lavorazioni dal catalogo
 - Prezzo auto-compilato dal catalogo, modificabile per ogni singola voce
 - Note per voce di lavorazione
 - Filtro per stato: tutti / in officina / completati
@@ -272,24 +297,24 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    BROWSER                              │
-│  index.html → carica CSS + 6 file JS in sequenza        │
+│  index.html → carica CSS + 7 file JS in sequenza        │
 │                                                         │
-│  db.js → lavorazioni.js → clienti.js                   │
+│  db.js → lavorazioni.js → clienti.js → bici.js         │
 │       → ordini.js → ui.js → app.js                     │
 └────────────────────┬────────────────────────────────────┘
                      │ HTTP fetch() JSON
                      ▼
 ┌─────────────────────────────────────────────────────────┐
 │                    SERVER (Node.js)                     │
-│  index.js → routes/clienti.js                          │
-│           → routes/ordini.js                           │
-│           → routes/lavorazioni.js                      │
-│                     │                                   │
-│                  db.js (SQLite)                         │
-└────────────────────┬────────────────────────────────────┘
-                     │ lettura/scrittura file
-                     ▼
-              data/officina.db
+│  index.js → routes/clienti.js ──┐                      │
+│           → routes/ordini.js ───┼──► db.js             │
+│           → routes/lavoraz..js ─┤      │               │
+│           → routes/bici.js ─────┘      │               │
+│                                        │ SQL            │
+└───────────────────────────────────────┬┘               │
+                                        │                 │
+                               data/officina.db           │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -307,7 +332,7 @@ Cosa fa:
 1. Crea il server Express
 2. Abilita la lettura del JSON in arrivo
 3. Serve i file statici della cartella /public
-4. Registra le 3 route API
+4. Registra le 4 route API (clienti, ordini, lavorazioni, bici)
 5. Si mette in ascolto sulla porta 3000
 6. Calcola l'IP locale e lo stampa in console
 ```
@@ -331,9 +356,10 @@ Cosa fa:
 1. Crea la cartella /data se non esiste
 2. Apre (o crea) il file officina.db
 3. Attiva ottimizzazioni di performance (WAL)
-4. Crea le 3 tabelle se non esistono già
-5. Inserisce 13 lavorazioni predefinite al primo avvio
-6. Esporta la connessione al database
+4. Crea le 4 tabelle nell'ordine corretto (clienti → lavorazioni → bici → ordini)
+5. Esegue migrazioni sicure per database già esistenti
+6. Inserisce 13 lavorazioni predefinite al primo avvio
+7. Esporta la connessione al database
 ```
 
 **Concetti chiave:**
@@ -341,6 +367,8 @@ Cosa fa:
 - **`better-sqlite3`** — libreria SQLite **sincrona** per Node.js, più semplice e veloce per query semplici rispetto alle alternative asincrone
 - **`journal_mode = WAL`** — Write-Ahead Logging: permette letture e scritture simultanee senza blocchi, fondamentale quando telefono e PC accedono insieme
 - **`foreign_keys = ON`** — SQLite di default disabilita i vincoli di integrità referenziale, questa riga li forza
+- **Ordine delle tabelle** — le tabelle devono essere create nell'ordine giusto: prima quelle referenziate, poi quelle che le referenziano. `clienti` viene prima di `bici`, che viene prima di `ordini`
+- **Migrazioni con `PRAGMA table_info()`** — prima di fare `ALTER TABLE`, si controlla se la colonna esiste già leggendo i metadati della tabella. Questo permette di aggiornare database già esistenti senza errori
 - **`CREATE TABLE IF NOT EXISTS`** — crea la tabella solo se non esiste, così lo script può girare più volte senza errori
 - **`db.transaction()`** — raggruppa i 13 INSERT in una transazione atomica (~50x più veloce di INSERT singoli)
 - **`module.exports = db`** — esporta la connessione aperta, così tutti i `routes/*.js` usano **la stessa connessione**
@@ -358,7 +386,7 @@ GET    /api/clienti       → restituisce tutti i clienti (ordinati per nome)
 GET    /api/clienti/:id   → restituisce un singolo cliente
 POST   /api/clienti       → crea un nuovo cliente
 PUT    /api/clienti/:id   → aggiorna un cliente esistente
-DELETE /api/clienti/:id   → elimina cliente e tutti i suoi ordini
+DELETE /api/clienti/:id   → elimina cliente, le sue bici e tutti i suoi ordini
 ```
 
 **Concetti chiave:**
@@ -368,7 +396,29 @@ DELETE /api/clienti/:id   → elimina cliente e tutti i suoi ordini
 - **`req.body`** — contiene i dati JSON inviati dal client nel body della richiesta
 - **`res.status(404).json()`** — risponde con codice HTTP 404 e messaggio di errore JSON
 - **`res.status(201)`** — HTTP 201 = "Created", risposta corretta per una POST che crea una risorsa
-- **DELETE a cascata** — prima elimina tutti gli ordini del cliente, poi il cliente stesso. Necessario con foreign keys attive
+- **DELETE a cascata** — elimina nell'ordine corretto: prima gli ordini, poi le bici, poi il cliente. Necessario con foreign keys attive
+
+---
+
+#### `server/routes/bici.js` — API Bici *(v1.2.0)*
+
+**Tecnologie:** Express Router, better-sqlite3
+
+```
+Espone 5 endpoint HTTP:
+
+GET    /api/bici?clienteId=xxx → lista bici di un cliente specifico
+GET    /api/bici/:id           → dettaglio singola bici
+POST   /api/bici               → crea bici (body: clienteId*, modello*, marca, colore, note)
+PUT    /api/bici/:id           → aggiorna bici
+DELETE /api/bici/:id           → elimina bici (imposta biciId=NULL negli ordini collegati)
+```
+
+**Concetti chiave:**
+
+- **`req.query.clienteId`** — parametro di query string nell'URL (`?clienteId=abc`). Permette di filtrare le bici per cliente senza una route separata
+- **DELETE non distruttivo** — prima dell'eliminazione, tutti gli ordini che referenziano quella bici vengono aggiornati con `biciId = NULL`. Gli ordini e i loro dati storici restano intatti; solo il collegamento alla bici viene rimosso
+- **Campi opzionali** — `marca`, `colore` e `note` hanno default vuoto. Solo `clienteId` e `modello` sono obbligatori
 
 ---
 
@@ -380,12 +430,14 @@ DELETE /api/clienti/:id   → elimina cliente e tutti i suoi ordini
 Espone 5 endpoint HTTP per gestire gli ordini.
 Peculiarità: le voci di lavorazione sono un array
 salvato come stringa JSON nella colonna "voci".
+Include il campo biciId per collegare l'ordine a una bici specifica.
 ```
 
 **Concetti chiave:**
 
 - **Voci come JSON serializzato** — SQLite non ha un tipo "array". Le voci vengono salvate con `JSON.stringify([...])` e rilette con `JSON.parse(...)`. Alternativa sarebbe una tabella separata `voci_ordine`, ma per questa scala la serializzazione è sufficiente
 - **Funzione `parse(row)`** — ogni volta che si legge un ordine dal DB, converte automaticamente la stringa JSON delle voci in array JavaScript
+- **`biciId` nullable** — il campo accetta `NULL` quando l'ordine non è associato a una bici specifica. Il server normalizza sempre i valori falsy a `NULL` con `biciId || null`
 - **PUT per chiusura/riapertura** — non esistono endpoint separati `/chiudi` e `/riapri`. Si usa la PUT passando `stato: "chiuso"` o `stato: "aperto"` insieme a `dataUscita`
 
 ---
@@ -414,7 +466,7 @@ CRUD completo per il catalogo delle lavorazioni.
 ```
 È l'unico file del frontend che "parla" con il server.
 Tutti gli altri moduli chiamano questo, mai fetch() direttamente.
-Espone: getAll, findById, create, update, upsert, remove
+Espone: getAll, findById, create, update, upsert, remove, newId
 ```
 
 **Concetti chiave:**
@@ -424,6 +476,7 @@ Espone: getAll, findById, create, update, upsert, remove
 - **`_req()` privata** — centralizza tutta la logica: headers, gestione errori HTTP, parse JSON. Le funzioni pubbliche sono una riga ciascuna
 - **`throw new Error()`** — se il server risponde con errore (4xx, 5xx), lancia un errore JavaScript catturato con `try/catch` nei moduli superiori
 - **`BASE = '/api'`** — path relativo senza dominio: funziona sia su `localhost:3000` che su `192.168.1.X:3000` senza modifiche al codice
+- **`getAll(col)`** — accetta sia `'bici'` che `'bici?clienteId=abc'`: la query string viene passata direttamente nell'URL, sfruttando il parametro `req.query` del server
 
 ---
 
@@ -456,7 +509,24 @@ Metodi: getAll, findById, cerca, salva, elimina
 **Concetti chiave:**
 
 - **`cerca()` lato client** — non fa nuove chiamate al server; scarica tutti i clienti una volta e filtra in memoria con `Array.filter()`. Per centinaia di clienti è istantanea e non genera traffico inutile
-- **`Array.filter()` + `String.includes()`** — pattern classico per ricerca testuale multicolonna: converte tutto in minuscolo e cerca la query in nome, telefono, email e modello bici contemporaneamente
+- **`Array.filter()` + `String.includes()`** — pattern classico per ricerca testuale multicolonna: converte tutto in minuscolo e cerca la query in nome, telefono ed email contemporaneamente
+
+---
+
+#### `public/js/bici.js` — Logica Bici *(v1.2.0)*
+
+**Tecnologie:** JavaScript ES2020, async/await
+
+```
+Service layer per la gestione delle bici associate ai clienti.
+Metodi: getByCliente, findById, salva, elimina
+```
+
+**Concetti chiave:**
+
+- **`getByCliente(clienteId)`** — chiama `DB.getAll('bici?clienteId=...')` passando il filtro nella query string. Il server filtra le bici per cliente e restituisce solo quelle pertinenti
+- **`salva(data)`** — distingue automaticamente tra creazione (no `id`) e aggiornamento (con `id`). I campi opzionali vengono sempre normalizzati con `.trim()` per evitare spazi accidentali
+- **Architettura semplificata** — ogni bici ha un `clienteId` diretto. Non esiste una tabella pivot `bici_clienti`: una bici appartiene a un solo cliente, il che è sufficiente per il caso d'uso di una ciclo officina
 
 ---
 
@@ -478,6 +548,7 @@ Metodi: getAll, findById, getByCliente, getAperti,
 - **`getAperti()` e `getChiusiOggi()`** — filtrano l'array già scaricato con `Array.filter()`, senza nuove chiamate HTTP
 - **`getByCliente(clienteId)`** — filtra tutti gli ordini per un cliente specifico, usato dallo storico
 - **`calcolaIncasso()`** — usa `Array.reduce()` per sommare i totali: pattern funzionale JavaScript per aggregare valori da un array
+- **`biciId` nel record** — incluso nel payload inviato al server. Viene normalizzato a `null` se non selezionato, evitando stringhe vuote nel database
 - **`chiudi()` e `riapri()`** — prima GET per ottenere l'ordine attuale, poi PUT con i campi aggiornati. Garantisce di non sovrascrivere dati cambiati da un altro dispositivo nel frattempo
 - **Snapshot delle voci** — le voci contengono `nome` e `prezzo` copiati al momento del salvataggio. Se si modifica il prezzo di una lavorazione nel catalogo, gli ordini passati mostrano sempre il prezzo originale
 
@@ -492,26 +563,31 @@ Il modulo più grande. Trasforma i dati in HTML visibile
 e gestisce apertura/chiusura dei modali con i form precompilati.
 
 Funzioni principali:
-- renderDashboard()       → statistiche e lista bici in officina
-- renderClienti()         → lista schede clienti con ricerca
-- renderOrdini()          → lista ordini con filtro stato + ricerca testo
-- renderCatalogo()        → lista lavorazioni del catalogo
-- apriModalCliente()      → apre e precompila il form cliente
-- apriModalOrdine()       → apre ordine con select clienti e lavorazioni
-- apriModalLavorazione()  → apre e precompila il form lavorazione
-- apriModalStorico()      → apre storico interventi con stats e ricerca live
-- filtraStorico()         → filtra la lista storico senza nuove chiamate API
-- aggiungiRigaVoce()      → aggiunge riga dinamica alla tabella voci
-- raccogliVoci()          → legge tutte le righe e le trasforma in array
-- aggiornaIncasso()       → aggiorna il valore rispettando la visibilità
+- renderDashboard()          → statistiche e lista bici in officina
+- renderClienti()            → lista schede clienti con ricerca
+- renderOrdini()             → lista ordini con filtro stato + ricerca testo
+- renderCatalogo()           → lista lavorazioni del catalogo
+- apriModalCliente()         → apre e precompila il form cliente
+- apriModalOrdine()          → apre ordine con select clienti, bici, lavorazioni
+- apriModalLavorazione()     → apre e precompila il form lavorazione
+- apriModalStorico()         → apre storico interventi con stats e ricerca live
+- filtraStorico()            → filtra la lista storico senza nuove chiamate API
+- apriModalBiciCliente()     → apre il modal con tutte le bici del cliente
+- renderBiciList()           → renderizza la lista bici nel modal
+- apriModalAggiungiBici()    → apre form per creare o modificare una bici
+- aggiornaBiciSelect()       → aggiorna il select bici nel form ordine
+- aggiungiRigaVoce()         → aggiunge riga dinamica alla tabella voci
+- raccogliVoci()             → legge tutte le righe e le trasforma in array
+- aggiornaIncasso()          → aggiorna il valore rispettando la visibilità
 ```
 
 **Concetti chiave:**
 
 - **Template Literals** (backtick) — HTML multiriga con variabili JavaScript inserite con `${espressione}`. Modo moderno per generare HTML dinamico senza librerie esterne
 - **`innerHTML`** — aggiorna intere sezioni del DOM in un colpo solo con una stringa HTML
-- **`Promise.all([])`** — esegue più chiamate async **in parallelo**. Es. `apriModalStorico()` carica cliente e ordini contemporaneamente
+- **`Promise.all([])`** — esegue più chiamate async **in parallelo**. Es. `apriModalBiciCliente()` carica cliente e bici contemporaneamente; `apriModalOrdine()` carica ordine, clienti e lavorazioni in una sola attesa
 - **`Object.fromEntries()`** — trasforma l'array clienti in dizionario `{ id: cliente }` per lookup O(1) invece di `find()` ripetuto O(n²)
+- **`aggiornaBiciSelect(clienteId, biciIdSelezionata)`** — funzione async che, dato un clienteId, scarica le sue bici e popola il `<select>` nel form ordine. Viene chiamata sia all'apertura del modal (se c'è già un cliente) sia ogni volta che si cambia il cliente nel select
 - **Cache `_storicoOrdini`** — gli ordini dello storico vengono caricati una volta sola e salvati in una variabile del modulo. La ricerca live filtra questa cache senza fare nuove chiamate al server
 - **Event listener su righe dinamiche** — i listener di ogni riga voci (`change`, `input`, `click`) vengono aggiunti direttamente all'elemento TR appena creato
 - **Modali con classe `hidden`** — i modali esistono sempre nel DOM; aprirli significa solo rimuovere la classe CSS `hidden`
@@ -529,15 +605,17 @@ né rendering. Si occupa esclusivamente di:
 1. Aspettare che la pagina sia caricata (DOMContentLoaded)
 2. Gestire la navigazione tra le 4 view
 3. Collegare i bottoni alle funzioni giuste
-4. Gestire i submit dei 3 form
+4. Gestire i submit dei 4 form (cliente, ordine, lavorazione, bici)
 5. Mostrare errori all'utente (toast rosso)
 ```
 
 **Concetti chiave:**
 
 - **`DOMContentLoaded`** — evento che scatta quando il browser ha finito di costruire il DOM
-- **Event Delegation** — un solo listener su `document` gestisce tutti i click delle card dinamiche. Si usa `closest('[data-action]')` per risalire l'albero DOM e trovare il bottone. Gestisce anche `storico-cliente` per aprire il modal storico
+- **Event Delegation** — un solo listener su `document` gestisce tutti i click delle card dinamiche. Si usa `closest('[data-action]')` per risalire l'albero DOM e trovare il bottone. Gestisce: `edit-cliente`, `del-cliente`, `storico-cliente`, `bici-cliente`, `edit-bici`, `del-bici`, `edit-ordine`, `del-ordine`, `chiudi-ordine`, `riapri-ordine`, `edit-lavorazione`, `del-lavorazione`
 - **`data-action` e `data-id`** — attributi HTML personalizzati usati come "messaggi" tra HTML e JavaScript. Il rendering li inserisce nell'HTML, l'event delegation li legge con `btn.dataset.action` e `btn.dataset.id`
+- **Listener `change` su `#ordine-cliente-id`** — ogni volta che si cambia il cliente nel form ordine, viene chiamata `UI.aggiornaBiciSelect(this.value)` che ricarica il select bici in modo asincrono
+- **`bici-cliente-id-hidden`** — input nascosto nel modal bici che mantiene il `clienteId` corrente. Viene letto dai handler di `edit-bici` e `del-bici` per sapere a quale cliente appartiene la bici e ricaricare la lista dopo le operazioni
 - **Toast di errore** — `<div>` creato al volo, aggiunto al DOM, rimosso automaticamente dopo 4 secondi con `setTimeout`. Zero librerie esterne
 - **`currentView`** — variabile che traccia la view attiva, usata da `refreshView()` per sapere quale lista aggiornare dopo ogni operazione
 
@@ -558,18 +636,18 @@ né rendering. Si occupa esclusivamente di:
 │    │         DOM / HTML                      │       │
 │    │                                         │       │
 │    ├──► clienti.js ──┐                       │       │
-│    ├──► ordini.js ───┼──► db.js (fetch) ─────┘       │
-│    └──► lavoraz..js ─┘      │                        │
-│                             │ HTTP JSON               │
+│    ├──► bici.js ─────┼──► db.js (fetch) ─────┘       │
+│    ├──► ordini.js ───┤      │                        │
+│    └──► lavoraz..js ─┘      │ HTTP JSON              │
 └─────────────────────────────┼────────────────────────┘
                               │
 ┌─────────────────────────────┼────────────────────────┐
 │  BACKEND (Node.js)          ▼                        │
 │                                                      │
 │  index.js ──► routes/clienti.js ──┐                  │
-│           ──► routes/ordini.js ───┼──► db.js         │
-│           ──► routes/lavoraz..js ─┘      │           │
-│                                          │ SQL        │
+│           ──► routes/bici.js ─────┼──► db.js         │
+│           ──► routes/ordini.js ───┤      │           │
+│           ──► routes/lavoraz..js ─┘      │ SQL       │
 └──────────────────────────────────────────┼───────────┘
                                            │
                                   data/officina.db
@@ -578,41 +656,98 @@ né rendering. Si occupa esclusivamente di:
 ### Esempio — Salvataggio di un ordine
 
 ```
-1. Utente clicca "Salva Ordine"
+1. Utente seleziona cliente "Mario Rossi" nel form ordine
          │
          ▼
-2. app.js → intercetta il submit del form
-            raccoglie i dati dal DOM
+2. app.js → listener change su #ordine-cliente-id
+            chiama UI.aggiornaBiciSelect(clienteId)
+         │
+         ▼
+3. ui.js → BiciService.getByCliente(clienteId)
+         → DB.getAll('bici?clienteId=abc123')
+         → fetch GET /api/bici?clienteId=abc123
+         → popola il select bici con "Trek FX3", "Bianchi Via Nirone"
+         │
+         ▼
+4. Utente seleziona "Trek FX3", aggiunge lavorazioni, clicca "Salva Ordine"
+         │
+         ▼
+5. app.js → intercetta il submit del form
+            raccoglie clienteId, biciId, voci dal DOM
             chiama OrdiniService.salva(data, voci)
          │
          ▼
-3. ordini.js → costruisce l'oggetto record
+6. ordini.js → costruisce il record con biciId incluso
                calcola il totale con reduce()
                chiama DB.create('ordini', record)
          │
          ▼
-4. db.js → fetch('POST', '/api/ordini', record)
-           serializza in JSON e invia al server
-         │
-         ▼  [rete HTTP locale Wi-Fi]
+7. db.js → fetch POST /api/ordini con il record JSON
          │
          ▼
-5. routes/ordini.js → riceve req.body
-                      esegue INSERT su SQLite
-                      risponde con l'ordine creato (JSON)
+8. routes/ordini.js → riceve req.body (incluso biciId)
+                      INSERT INTO ordini ... biciId=?
+                      risponde con l'ordine creato
          │
          ▼
-6. db.js → riceve la risposta, fa JSON.parse()
-           restituisce l'oggetto a ordini.js
+9. app.js → chiude il modale, chiama refreshView()
          │
          ▼
-7. app.js → chiude il modale, chiama refreshView()
+10. ui.js → rigenera l'HTML della lista ordini
+            mostra "🚲 Trek FX3" nella card ordine ✅
+```
+
+### Esempio — Gestione bici di un cliente
+
+```
+1. Utente clicca "🚲 Bici" su una card cliente
          │
          ▼
-8. ui.js → rigenera l'HTML della lista ordini
+2. app.js → event delegation → action: 'bici-cliente'
+            chiama UI.apriModalBiciCliente(clienteId)
          │
          ▼
-9. Utente vede il nuovo ordine nella lista ✅
+3. ui.js → Promise.all([
+             ClientiService.findById(clienteId),
+             BiciService.getByCliente(clienteId)
+           ])
+         │
+         ▼
+4. bici.js → DB.getAll('bici?clienteId=abc123')
+           → fetch GET /api/bici?clienteId=abc123
+         │
+         ▼
+5. ui.js → popola header con nome cliente
+           renderizza lista bici con bottoni ✏ e 🗑
+           apre modal-bici-cliente
+         │
+         ▼
+6. Utente clicca "+ Aggiungi Bici"
+         │
+         ▼
+7. app.js → listener su #btn-aggiungi-bici
+            legge clienteId da #bici-cliente-id-hidden
+            chiama UI.apriModalAggiungiBici(clienteId)
+         │
+         ▼
+8. ui.js → resetta il form, preimposta clienteId
+           apre modal-aggiungi-bici
+         │
+         ▼
+9. Utente compila modello "Trek FX3", clicca "Salva"
+         │
+         ▼
+10. app.js → submit #form-aggiungi-bici
+             chiama BiciService.salva({ clienteId, modello, ... })
+         │
+         ▼
+11. bici.js → DB.create('bici', record)
+            → fetch POST /api/bici
+         │
+         ▼
+12. app.js → closeAllModals()
+             chiama UI.apriModalBiciCliente(clienteId)
+             → ricarica e mostra la lista aggiornata ✅
 ```
 
 ### Esempio — Apertura Storico Cliente
@@ -636,7 +771,7 @@ né rendering. Si occupa esclusivamente di:
          ▼
 5. ui.js → ordina per data decrescente
            calcola 5 statistiche (totale, media, ecc.)
-           popola header, stats, lista ordini
+           mostra bici associata su ogni ordine
            apre modal-storico
          │
          ▼
@@ -670,7 +805,7 @@ Tutte le API accettano e restituiscono **JSON**.
 | `GET` | `/api/clienti/:id` | Dettaglio singolo cliente |
 | `POST` | `/api/clienti` | Crea nuovo cliente |
 | `PUT` | `/api/clienti/:id` | Aggiorna cliente esistente |
-| `DELETE` | `/api/clienti/:id` | Elimina cliente e tutti i suoi ordini |
+| `DELETE` | `/api/clienti/:id` | Elimina cliente, bici e tutti i suoi ordini |
 
 **Corpo POST/PUT:**
 ```json
@@ -678,8 +813,30 @@ Tutte le API accettano e restituiscono **JSON**.
   "nome":     "Mario Rossi",
   "telefono": "+39 333 1234567",
   "email":    "mario@example.com",
-  "bici":     "Trek FX3",
   "note":     "Cliente abituale"
+}
+```
+
+---
+
+### Bici
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| `GET` | `/api/bici?clienteId=xxx` | Lista bici di un cliente |
+| `GET` | `/api/bici/:id` | Dettaglio singola bici |
+| `POST` | `/api/bici` | Crea nuova bici |
+| `PUT` | `/api/bici/:id` | Aggiorna bici |
+| `DELETE` | `/api/bici/:id` | Elimina bici (imposta biciId=NULL negli ordini) |
+
+**Corpo POST/PUT:**
+```json
+{
+  "clienteId": "abc123",
+  "modello":   "Trek FX3",
+  "marca":     "Trek",
+  "colore":    "Nero",
+  "note":      "Taglia M, portapacchi posteriore"
 }
 ```
 
@@ -699,8 +856,9 @@ Tutte le API accettano e restituiscono **JSON**.
 ```json
 {
   "clienteId":    "abc123",
+  "biciId":       "bici456",
   "stato":        "aperto",
-  "dataIngresso": "2026-05-14T09:00:00.000Z",
+  "dataIngresso": "2026-05-15T09:00:00.000Z",
   "dataUscita":   null,
   "note":         "Cambio che salta",
   "voci": [
@@ -717,7 +875,7 @@ Tutte le API accettano e restituiscono **JSON**.
 
 **Chiudere un ordine (PUT):**
 ```json
-{ "stato": "chiuso", "dataUscita": "2026-05-14T17:30:00.000Z" }
+{ "stato": "chiuso", "dataUscita": "2026-05-15T17:30:00.000Z" }
 ```
 
 ---
@@ -750,35 +908,62 @@ File: `data/officina.db`
 ### Schema tabelle
 
 ```sql
-CREATE TABLE clienti (
-  id          TEXT PRIMARY KEY,
-  nome        TEXT NOT NULL,
-  telefono    TEXT DEFAULT '',
-  email       TEXT DEFAULT '',
-  bici        TEXT DEFAULT '',
-  note        TEXT DEFAULT '',
-  createdAt   TEXT DEFAULT (datetime('now'))
+-- Tabella 1: clienti
+CREATE TABLE IF NOT EXISTS clienti (
+  id        TEXT PRIMARY KEY,
+  nome      TEXT NOT NULL,
+  telefono  TEXT DEFAULT '',
+  email     TEXT DEFAULT '',
+  bici      TEXT DEFAULT '',   -- campo legacy, non più usato nei nuovi ordini
+  note      TEXT DEFAULT '',
+  createdAt TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE lavorazioni (
+-- Tabella 2: lavorazioni (catalogo prezzi)
+CREATE TABLE IF NOT EXISTS lavorazioni (
   id          TEXT PRIMARY KEY,
   nome        TEXT NOT NULL,
   prezzo      REAL DEFAULT 0,
   descrizione TEXT DEFAULT ''
 );
 
-CREATE TABLE ordini (
+-- Tabella 3: bici (deve venire prima di ordini per le FK)
+CREATE TABLE IF NOT EXISTS bici (
+  id        TEXT PRIMARY KEY,
+  clienteId TEXT NOT NULL,
+  modello   TEXT NOT NULL,
+  marca     TEXT DEFAULT '',
+  colore    TEXT DEFAULT '',
+  note      TEXT DEFAULT '',
+  createdAt TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (clienteId) REFERENCES clienti(id)
+);
+
+-- Tabella 4: ordini
+CREATE TABLE IF NOT EXISTS ordini (
   id           TEXT PRIMARY KEY,
   clienteId    TEXT NOT NULL,
+  biciId       TEXT DEFAULT NULL,   -- nullable: ordine non legato a una bici specifica
   stato        TEXT DEFAULT 'aperto',  -- 'aperto' | 'chiuso'
   dataIngresso TEXT,
   dataUscita   TEXT,
   note         TEXT DEFAULT '',
-  voci         TEXT DEFAULT '[]',      -- array JSON serializzato
+  voci         TEXT DEFAULT '[]',   -- array JSON serializzato
   totale       REAL DEFAULT 0,
   FOREIGN KEY (clienteId) REFERENCES clienti(id)
 );
 ```
+
+### Migrazioni automatiche
+
+Al primo avvio dopo l'aggiornamento alla v1.2.0, il sistema rileva automaticamente se il database esistente ha bisogno di aggiornamenti:
+
+```
+✅  Migrazione: aggiunta colonna clienteId a bici
+✅  Migrazione: aggiunta colonna biciId a ordini
+```
+
+Queste migrazioni usano `PRAGMA table_info()` per verificare l'esistenza delle colonne prima di aggiungerle, rendendo il processo sicuro e idempotente.
 
 ### Lavorazioni predefinite inserite al primo avvio
 
@@ -852,7 +1037,10 @@ Poi pianificalo con **Utilità di pianificazione** di Windows.
 | `EADDRINUSE porta 3000` | Porta già in uso | Vedi comandi sotto |
 | Telefono non si connette | Rete diversa o firewall | Stessa Wi-Fi + apri porta 3000 nel firewall Windows |
 | `Cannot find module` | Dipendenze mancanti | Esegui `npm install` |
+| `npm error code 1` con better-sqlite3 | Node.js versione 21/22/24 | Installa Node.js **v20 LTS** da nodejs.org |
+| "l'esecuzione di script è disabilitata" | PowerShell blocca gli script | Usa il **Prompt dei comandi (cmd)** invece di PowerShell |
 | Dati non salvati / errore 500 | Cartella `data/` non scrivibile | Verifica permessi sulla cartella |
+| Select bici vuoto nel form ordine | Nessuna bici registrata per il cliente | Aggiungi prima una bici dalla scheda cliente (bottone 🚲 Bici) |
 | Pagina bianca | Errore JavaScript | `F12 → Console` → controlla errori rossi |
 
 ### Liberare la porta 3000
@@ -886,6 +1074,7 @@ const PORT = process.env.PORT || 3001;
 | **Backup automatico su cloud** | 🟡 Media | Copia automatica su Google Drive o Dropbox |
 | **Notifiche pronto-ritiro** | 🟡 Media | SMS o WhatsApp tramite API Twilio |
 | **Statistiche mensili** | 🟢 Bassa | Grafici incassi e lavorazioni più frequenti |
+| **Numero di serie bici** | 🟢 Bassa | Campo aggiuntivo nella scheda bici per il seriale |
 | **Gestione magazzino ricambi** | 🟢 Bassa | Scorte camere d'aria, catene, pastiglie |
 | **Deploy cloud** | 🟢 Bassa | Accesso da fuori rete (Railway, Render) |
 
@@ -895,9 +1084,10 @@ const PORT = process.env.PORT || 3001;
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.2.0** | 2026-05-15 | Aggiunta **gestione multi-bici per cliente**: ogni cliente può avere più bici (modello, marca, colore, note); select dinamico bici nel form ordine; bici visibile in card ordini e storico; migrazioni automatiche per DB esistenti; rimossa architettura pivot `bici_clienti` in favore di `clienteId` diretto sulla bici; nuovo file `server/routes/bici.js` e `public/js/bici.js` |
 | **1.1.0** | 2026-05-14 | Aggiunto **Storico interventi per cliente**: modal dedicato con 5 statistiche riepilogative, lista completa ordini ordinata per data, ricerca live, modifica rapida. Aggiornata grafica header con logo Cerica Bikelab e palette slate coerente. Totale speso visibile nelle card clienti |
 | **1.0.0** | 2026-05-14 | Prima versione: clienti, ordini, catalogo lavorazioni, persistenza SQLite, accesso LAN multi-dispositivo, ricerca e filtri, toggle incasso |
 
 ---
 
-*🚲 CicloDesk v1.1.0 — Gestionale per ciclo officina Cerica Bikelab*
+*🚲 CicloDesk v1.2.0 — Gestionale per ciclo officina Cerica Bikelab*
