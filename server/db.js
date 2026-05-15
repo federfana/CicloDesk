@@ -10,14 +10,13 @@ const db = new Database(path.join(dataDir, 'officina.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// ── Schema (ordine importante: prima le tabelle referenziate) ──
+// ── Schema ─────────────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS clienti (
     id        TEXT PRIMARY KEY,
     nome      TEXT NOT NULL,
     telefono  TEXT DEFAULT '',
     email     TEXT DEFAULT '',
-    bici      TEXT DEFAULT '',
     note      TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now'))
   );
@@ -30,13 +29,16 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS bici (
-    id        TEXT PRIMARY KEY,
-    clienteId TEXT NOT NULL,
-    modello   TEXT NOT NULL,
-    marca     TEXT DEFAULT '',
-    colore    TEXT DEFAULT '',
-    note      TEXT DEFAULT '',
-    createdAt TEXT DEFAULT (datetime('now')),
+    id                     TEXT PRIMARY KEY,
+    clienteId              TEXT NOT NULL,
+    marca                  TEXT DEFAULT '',
+    modello                TEXT NOT NULL,
+    tipo                   TEXT DEFAULT 'strada',
+    colore                 TEXT DEFAULT '',
+    seriale_forcella       TEXT DEFAULT '',
+    seriale_ammortizzatore TEXT DEFAULT '',
+    note                   TEXT DEFAULT '',
+    createdAt              TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (clienteId) REFERENCES clienti(id)
   );
 
@@ -44,7 +46,7 @@ db.exec(`
     id           TEXT PRIMARY KEY,
     clienteId    TEXT NOT NULL,
     biciId       TEXT DEFAULT NULL,
-    stato        TEXT DEFAULT 'aperto',
+    stato        TEXT DEFAULT 'accettata',
     dataIngresso TEXT,
     dataUscita   TEXT,
     note         TEXT DEFAULT '',
@@ -53,25 +55,6 @@ db.exec(`
     FOREIGN KEY (clienteId) REFERENCES clienti(id)
   );
 `);
-
-// ── Migrazioni sicure per DB esistenti ─────────────────────────
-const colsBici   = db.prepare("PRAGMA table_info(bici)").all().map(c => c.name);
-const colsOrdini = db.prepare("PRAGMA table_info(ordini)").all().map(c => c.name);
-
-if (!colsBici.includes('clienteId')) {
-  db.exec("ALTER TABLE bici ADD COLUMN clienteId TEXT DEFAULT ''");
-  console.log('✅  Migrazione: aggiunta colonna clienteId a bici');
-}
-if (!colsBici.includes('marca')) {
-  db.exec("ALTER TABLE bici ADD COLUMN marca TEXT DEFAULT ''");
-}
-if (!colsBici.includes('colore')) {
-  db.exec("ALTER TABLE bici ADD COLUMN colore TEXT DEFAULT ''");
-}
-if (!colsOrdini.includes('biciId')) {
-  db.exec("ALTER TABLE ordini ADD COLUMN biciId TEXT DEFAULT NULL");
-  console.log('✅  Migrazione: aggiunta colonna biciId a ordini');
-}
 
 // ── Seed lavorazioni default (solo se tabella vuota) ───────────
 const { n } = db.prepare('SELECT COUNT(*) as n FROM lavorazioni').get();
