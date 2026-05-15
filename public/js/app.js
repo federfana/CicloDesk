@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
         id:           ordineId,
         clienteId,
         biciId:       document.getElementById('ordine-bici-id').value || null,
-        stato:        esistente?.stato     || 'aperto',
+        stato:        esistente?.stato      || 'aperto',
         dataIngresso: document.getElementById('ordine-data-ingresso').value
                       ? new Date(document.getElementById('ordine-data-ingresso').value).toISOString()
                       : new Date().toISOString(),
@@ -238,8 +238,19 @@ document.addEventListener('DOMContentLoaded', () => {
         note:         document.getElementById('ordine-note').value,
       }, voci);
 
+      // Controlla se lo storico era aperto prima di chiudere tutto
+      const storicoModal    = document.getElementById('modal-storico');
+      const storicoAperto   = !storicoModal.classList.contains('hidden');
+      const storicoClienteId = storicoModal.dataset.clienteId;
+
       UI.closeAllModals();
-      await refreshView(currentView);
+
+      if (storicoAperto && storicoClienteId) {
+        // Riapri lo storico aggiornato invece di refreshare la view
+        await UI.apriModalStorico(storicoClienteId);
+      } else {
+        await refreshView(currentView);
+      }
     } catch (e) { showError(e.message); }
   });
 
