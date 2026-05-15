@@ -1,5 +1,8 @@
 const OrdiniService = (() => {
 
+  // Sequenza stati in ordine di avanzamento
+  const STATI = ['accettata', 'in_lavorazione', 'pronto', 'consegnata'];
+
   async function getAll() {
     return DB.getAll('ordini');
   }
@@ -13,16 +16,18 @@ const OrdiniService = (() => {
     return all.filter(o => o.clienteId === clienteId);
   }
 
+  // Bici ancora in officina = tutto ciò che non è consegnata
   async function getAperti() {
     const all = await getAll();
-    return all.filter(o => o.stato === 'aperto');
+    return all.filter(o => o.stato !== 'consegnata');
   }
 
+  // Consegnate oggi
   async function getChiusiOggi() {
     const oggi = new Date().toDateString();
     const all  = await getAll();
     return all.filter(o =>
-      o.stato === 'chiuso' &&
+      o.stato === 'consegnata' &&
       o.dataUscita &&
       new Date(o.dataUscita).toDateString() === oggi
     );
@@ -33,7 +38,7 @@ const OrdiniService = (() => {
     const record = {
       clienteId:    data.clienteId,
       biciId:       data.biciId || null,
-      stato:        data.stato        || 'aperto',
+      stato:        data.stato        || 'accettata',
       dataIngresso: data.dataIngresso || new Date().toISOString(),
       dataUscita:   data.dataUscita   || null,
       note:         (data.note || '').trim(),
@@ -49,16 +54,24 @@ const OrdiniService = (() => {
     return DB.create('ordini', record);
   }
 
-  async function chiudi(id) {
+  // Avanza al prossimo stato
+  async function avanza(id) {
     const o = await findById(id);
     if (!o) return null;
-    return DB.update('ordini', id, { ...o, stato: 'chiuso', dataUscita: new Date().toISOString() });
+    const idx       = STATI.indexOf(o.stato);
+    const nuovoStato = STATI[Math.min(idx + 1, STATI.length - 1)];
+    return DB.update('ordini', id, {
+      ...o,
+      stato:     nuovoStato,
+      dataUscita: nuovoStato === 'consegnata' ? new Date().toISOString() : null,
+    });
   }
 
+  // Riapri: torna a in_lavorazione
   async function riapri(id) {
     const o = await findById(id);
     if (!o) return null;
-    return DB.update('ordini', id, { ...o, stato: 'aperto', dataUscita: null });
+    return DB.update('ordini', id, { ...o, stato: 'in_lavorazione', dataUscita: null });
   }
 
   async function elimina(id) {
@@ -70,7 +83,8 @@ const OrdiniService = (() => {
   }
 
   return {
+    STATI,
     getAll, findById, getByCliente, getAperti, getChiusiOggi,
-    salva, chiudi, riapri, elimina, calcolaIncasso,
+    salva, avanza, riapri, elimina, calcolaIncasso,
   };
 })();
