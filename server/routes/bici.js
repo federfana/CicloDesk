@@ -10,8 +10,8 @@ function newId() {
 router.get('/', (req, res) => {
   const { clienteId } = req.query;
   const rows = clienteId
-    ? db.prepare('SELECT * FROM bici WHERE clienteId = ? ORDER BY modello ASC').all(clienteId)
-    : db.prepare('SELECT * FROM bici ORDER BY modello ASC').all();
+    ? db.prepare('SELECT * FROM bici WHERE clienteId = ? ORDER BY marca, modello').all(clienteId)
+    : db.prepare('SELECT * FROM bici ORDER BY marca, modello').all();
   res.json(rows);
 });
 
@@ -24,17 +24,27 @@ router.get('/:id', (req, res) => {
 
 // POST /api/bici
 router.post('/', (req, res) => {
-  const { clienteId, modello, marca = '', colore = '', note = '' } = req.body;
-  if (!clienteId) return res.status(400).json({ error: 'clienteId obbligatorio' });
+  const {
+    clienteId, marca = '', modello,
+    tipo = 'strada', colore = '',
+    seriale_forcella = '', seriale_ammortizzatore = '',
+    note = '',
+  } = req.body;
+  if (!clienteId)      return res.status(400).json({ error: 'clienteId obbligatorio' });
   if (!modello?.trim()) return res.status(400).json({ error: 'Modello obbligatorio' });
 
   const id        = newId();
   const createdAt = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO bici (id, clienteId, modello, marca, colore, note, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, clienteId, modello.trim(), marca.trim(), colore.trim(), note.trim(), createdAt);
+    INSERT INTO bici (id, clienteId, marca, modello, tipo, colore, seriale_forcella, seriale_ammortizzatore, note, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, clienteId,
+    marca.trim(), modello.trim(), tipo,
+    colore.trim(), seriale_forcella.trim(), seriale_ammortizzatore.trim(),
+    note.trim(), createdAt
+  );
 
   res.status(201).json(db.prepare('SELECT * FROM bici WHERE id = ?').get(id));
 });
@@ -46,25 +56,32 @@ router.put('/:id', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Bici non trovata' });
 
   const {
-    modello = existing.modello,
-    marca   = existing.marca,
-    colore  = existing.colore,
-    note    = existing.note,
+    marca                  = existing.marca,
+    modello                = existing.modello,
+    tipo                   = existing.tipo,
+    colore                 = existing.colore,
+    seriale_forcella       = existing.seriale_forcella,
+    seriale_ammortizzatore = existing.seriale_ammortizzatore,
+    note                   = existing.note,
   } = req.body;
 
   db.prepare(`
-    UPDATE bici SET modello=?, marca=?, colore=?, note=? WHERE id=?
-  `).run(modello.trim(), marca.trim(), colore.trim(), note.trim(), id);
+    UPDATE bici
+    SET marca=?, modello=?, tipo=?, colore=?, seriale_forcella=?, seriale_ammortizzatore=?, note=?
+    WHERE id=?
+  `).run(
+    marca.trim(), modello.trim(), tipo,
+    colore.trim(), seriale_forcella.trim(), seriale_ammortizzatore.trim(),
+    note.trim(), id
+  );
 
   res.json(db.prepare('SELECT * FROM bici WHERE id = ?').get(id));
 });
 
 // DELETE /api/bici/:id
 router.delete('/:id', (req, res) => {
-  const { id } = req.params;
-  // Scollega la bici dagli ordini senza eliminarli
-  db.prepare('UPDATE ordini SET biciId = NULL WHERE biciId = ?').run(id);
-  db.prepare('DELETE FROM bici WHERE id = ?').run(id);
+  db.prepare('UPDATE ordini SET biciId = NULL WHERE biciId = ?').run(req.params.id);
+  db.prepare('DELETE FROM bici WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
