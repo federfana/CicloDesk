@@ -32,6 +32,7 @@ const OrdiniService = (() => {
     const totale = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
     const record = {
       clienteId:    data.clienteId,
+      biciId:       data.biciId || null,
       stato:        data.stato        || 'aperto',
       dataIngresso: data.dataIngresso || new Date().toISOString(),
       dataUscita:   data.dataUscita   || null,
