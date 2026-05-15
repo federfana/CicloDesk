@@ -33,9 +33,9 @@ const UI = (() => {
     const el  = document.getElementById('stat-num-revenue');
     const btn = document.getElementById('btn-toggle-incasso');
     if (!el || !btn) return;
-    el.dataset.valore  = fmt(valore);
-    el.textContent     = incassoVisibile() ? fmt(valore) : '€ ••••';
-    btn.textContent    = incassoVisibile() ? '👁' : '🙈';
+    el.dataset.valore = fmt(valore);
+    el.textContent    = incassoVisibile() ? fmt(valore) : '€ ••••';
+    btn.textContent   = incassoVisibile() ? '👁' : '🙈';
   }
 
   // ── Dashboard ─────────────────────────────────────────────────
@@ -61,18 +61,24 @@ const UI = (() => {
     }
 
     container.innerHTML = aperti.map(o => {
-      const c = clientiMap[o.clienteId];
+      const c        = clientiMap[o.clienteId];
+      const biciInfo = o.biciNome || o.biciId || '';
       return `
         <div class="card stato-aperto">
           <div class="card-row">
             <span class="card-title">🚲 ${c ? c.nome : 'Cliente sconosciuto'}</span>
             <span class="card-badge badge-aperto">In officina</span>
           </div>
-          <span class="card-sub">${c?.bici || '—'} &nbsp;|&nbsp; Ingresso: ${fmtDate(o.dataIngresso)}</span>
-          <span class="card-sub">${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} — <strong>${fmt(o.totale)}</strong></span>
+          <span class="card-sub">
+            ${biciInfo || c?.bici || '—'} &nbsp;|&nbsp; Ingresso: ${fmtDate(o.dataIngresso)}
+          </span>
+          <span class="card-sub">
+            ${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} —
+            <strong>${fmt(o.totale)}</strong>
+          </span>
           <div class="card-actions">
-            <button class="btn btn-sm btn-success"   data-action="chiudi-ordine"   data-id="${o.id}">✔ Segna uscita</button>
-            <button class="btn btn-sm btn-secondary" data-action="edit-ordine"     data-id="${o.id}">✏ Modifica</button>
+            <button class="btn btn-sm btn-success"   data-action="chiudi-ordine" data-id="${o.id}">✔ Segna uscita</button>
+            <button class="btn btn-sm btn-secondary" data-action="edit-ordine"   data-id="${o.id}">✏ Modifica</button>
           </div>
         </div>`;
     }).join('');
@@ -92,24 +98,23 @@ const UI = (() => {
     }
 
     container.innerHTML = clienti.map(c => {
-      const ordini = tuttiOrdini.filter(o => o.clienteId === c.id);
-      const aperti = ordini.filter(o => o.stato === 'aperto').length;
+      const ordini      = tuttiOrdini.filter(o => o.clienteId === c.id);
+      const aperti      = ordini.filter(o => o.stato === 'aperto').length;
       const totaleSpeso = OrdiniService.calcolaIncasso(ordini.filter(o => o.stato === 'chiuso'));
       return `
         <div class="card">
           <div class="card-row">
             <span class="card-title">👤 ${c.nome}</span>
             <div class="card-actions">
-              <button class="btn btn-sm btn-secondary" data-action="storico-cliente"       data-id="${c.id}">📋 Storico</button>
-              <button class="btn btn-sm btn-primary"   data-action="nuovo-ordine-cliente"  data-id="${c.id}">+ Ordine</button>
-              <button class="btn btn-sm btn-secondary" data-action="bici-cliente"          data-id="${c.id}">🚲</button>
-              <button class="btn btn-sm btn-secondary" data-action="edit-cliente"          data-id="${c.id}">✏</button>
-              <button class="btn btn-sm btn-danger"    data-action="del-cliente"           data-id="${c.id}">🗑</button>
+              <button class="btn btn-sm btn-secondary" data-action="storico-cliente"      data-id="${c.id}">📋 Storico</button>
+              <button class="btn btn-sm btn-secondary" data-action="bici-cliente"         data-id="${c.id}">🚲 Bici</button>
+              <button class="btn btn-sm btn-primary"   data-action="nuovo-ordine-cliente" data-id="${c.id}">+ Ordine</button>
+              <button class="btn btn-sm btn-secondary" data-action="edit-cliente"         data-id="${c.id}">✏</button>
+              <button class="btn btn-sm btn-danger"    data-action="del-cliente"          data-id="${c.id}">🗑</button>
             </div>
           </div>
           <div class="card-row">
             <span class="card-sub">📞 ${c.telefono || '—'} &nbsp;|&nbsp; ✉ ${c.email || '—'}</span>
-            <span class="card-sub">🚲 ${c.bici || '—'}</span>
           </div>
           ${c.note ? `<span class="card-sub">📝 ${c.note}</span>` : ''}
           <span class="card-sub">
@@ -137,7 +142,7 @@ const UI = (() => {
         const c = clientiMap[o.clienteId];
         return (
           (c?.nome || '').toLowerCase().includes(q) ||
-          (c?.bici || '').toLowerCase().includes(q) ||
+          (o.biciNome || '').toLowerCase().includes(q) ||
           (o.note  || '').toLowerCase().includes(q) ||
           o.voci.some(v =>
             v.nome.toLowerCase().includes(q) ||
@@ -165,6 +170,7 @@ const UI = (() => {
             <span class="card-badge badge-${o.stato}">${o.stato === 'aperto' ? '🔧 In officina' : '✅ Completato'}</span>
           </div>
           <span class="card-sub">
+            ${o.biciNome ? `🚲 ${o.biciNome} &nbsp;|&nbsp; ` : ''}
             Ingresso: ${fmtDate(o.dataIngresso)}
             ${o.dataUscita ? '&nbsp;|&nbsp; Uscita: ' + fmtDate(o.dataUscita) : ''}
           </span>
@@ -210,7 +216,7 @@ const UI = (() => {
   }
 
   // ── Storico Cliente ───────────────────────────────────────────
-  let _storicoOrdini   = [];   // cache per ricerca live
+  let _storicoOrdini    = [];
   let _storicoClienteId = null;
 
   async function apriModalStorico(clienteId) {
@@ -219,18 +225,15 @@ const UI = (() => {
       OrdiniService.getByCliente(clienteId),
     ]);
 
-    // Ordina dal più recente
     _storicoOrdini    = tuttiOrdini.sort((a, b) =>
       new Date(b.dataIngresso) - new Date(a.dataIngresso)
     );
     _storicoClienteId = clienteId;
 
-    // Header
     document.getElementById('storico-cliente-nome').textContent = cliente.nome;
     document.getElementById('storico-cliente-info').textContent =
-      [cliente.bici, cliente.telefono, cliente.email].filter(Boolean).join('  ·  ');
+      [cliente.telefono, cliente.email].filter(Boolean).join('  ·  ');
 
-    // Stats
     const chiusi      = _storicoOrdini.filter(o => o.stato === 'chiuso');
     const totaleSpeso = OrdiniService.calcolaIncasso(chiusi);
     const media       = chiusi.length ? totaleSpeso / chiusi.length : 0;
@@ -242,9 +245,7 @@ const UI = (() => {
     document.getElementById('storico-stat-ultima').textContent =
       _storicoOrdini.length ? fmtDate(_storicoOrdini[0].dataIngresso) : '—';
 
-    // Reset ricerca
     document.getElementById('search-storico').value = '';
-
     renderStoricoLista(_storicoOrdini);
     openModal('modal-storico');
   }
@@ -257,7 +258,7 @@ const UI = (() => {
       return;
     }
 
-    container.innerHTML = ordini.map((o, i) => {
+    container.innerHTML = ordini.map(o => {
       const vociHtml = o.voci.map(v =>
         `<span class="tag">${v.nome} — ${fmt(v.prezzo)}${v.note ? ` (${v.note})` : ''}</span>`
       ).join('');
@@ -270,6 +271,7 @@ const UI = (() => {
               ${o.dataUscita
                 ? `<span class="storico-ordine-uscita">→ uscita ${fmtDate(o.dataUscita)}</span>`
                 : ''}
+              ${o.biciNome ? `<span class="card-sub" style="margin-left:.4rem">🚲 ${o.biciNome}</span>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:.6rem;">
               <span class="card-badge badge-${o.stato}">
@@ -288,13 +290,11 @@ const UI = (() => {
   }
 
   function filtraStorico(query) {
-    if (!query.trim()) {
-      renderStoricoLista(_storicoOrdini);
-      return;
-    }
-    const q = query.toLowerCase().trim();
+    if (!query.trim()) { renderStoricoLista(_storicoOrdini); return; }
+    const q        = query.toLowerCase().trim();
     const filtrati = _storicoOrdini.filter(o =>
       (o.note || '').toLowerCase().includes(q) ||
+      (o.biciNome || '').toLowerCase().includes(q) ||
       o.voci.some(v =>
         v.nome.toLowerCase().includes(q) ||
         (v.note || '').toLowerCase().includes(q)
@@ -304,82 +304,70 @@ const UI = (() => {
     renderStoricoLista(filtrati);
   }
 
-  // ── Modal Bici Cliente ─────────────────────────────────────────
+  // ── Bici Cliente ──────────────────────────────────────────────
   async function apriModalBiciCliente(clienteId) {
-    const cliente = await ClientiService.findById(clienteId);
-    const biciClienti = await BiciClientiService.getByCliente(clienteId);
-
-    // Popola le bici attuali e storiche
-    const attuali = biciClienti.filter(bc => !bc.data_rimozione);
-    const storiche = biciClienti.filter(bc => bc.data_rimozione);
-
-    document.getElementById('bici-cliente-nome').textContent = cliente.nome;
-    document.getElementById('bici-cliente-id-hidden').value = clienteId;
-
-    renderBiciClientiList('bici-attuali-list', attuali, false, clienteId);
-    renderBiciClientiList('bici-storiche-list', storiche, true, clienteId);
-
+    const [cliente, bici] = await Promise.all([
+      ClientiService.findById(clienteId),
+      BiciService.getByCliente(clienteId),
+    ]);
+    document.getElementById('bici-cliente-nome').textContent    = cliente.nome;
+    document.getElementById('bici-cliente-id-hidden').value     = clienteId;
+    renderBiciList(bici);
     openModal('modal-bici-cliente');
   }
 
-  function renderBiciClientiList(containerId, biciList, isStoriche, clienteId) {
-    const container = document.getElementById(containerId);
-
-    if (!biciList.length) {
-      container.innerHTML = emptyState(isStoriche ? 'Nessuna bici rimossa.' : 'Nessuna bici associata.');
+  function renderBiciList(bici) {
+    const container = document.getElementById('bici-attuali-list');
+    if (!bici.length) {
+      container.innerHTML = emptyState('Nessuna bici associata. Clicca "+ Aggiungi Bici".');
       return;
     }
-
-    container.innerHTML = biciList.map(bc => `
-      <div class="bici-item">
-        <div class="bici-item-info">
-          <strong>🚲 ${bc.modello}</strong>
-          <span class="bici-item-date">
-            ${isStoriche
-              ? `dal ${fmtDateOnly(bc.data_associazione)} - rimossa ${fmtDateOnly(bc.data_rimozione)}`
-              : `dal ${fmtDateOnly(bc.data_associazione)}`}
+    container.innerHTML = bici.map(b => `
+      <div class="card" style="margin-bottom:.5rem">
+        <div class="card-row">
+          <span class="card-title">
+            🚲 ${b.modello}
+            ${b.marca  ? `<span class="card-sub" style="font-weight:400"> — ${b.marca}</span>` : ''}
+            ${b.colore ? `<span class="card-sub" style="font-weight:400"> (${b.colore})</span>` : ''}
           </span>
+          <div class="card-actions">
+            <button class="btn btn-sm btn-secondary" data-action="edit-bici" data-id="${b.id}">✏</button>
+            <button class="btn btn-sm btn-danger"    data-action="del-bici"  data-id="${b.id}">🗑</button>
+          </div>
         </div>
-        <button class="btn btn-sm btn-danger" data-action="rimuovi-bici" data-assoc-id="${bc.id}">❌</button>
-      </div>
-    `).join('');
+        ${b.note ? `<span class="card-sub">📝 ${b.note}</span>` : ''}
+      </div>`
+    ).join('');
   }
 
-  async function apriModalAggiunggiBici(clienteId) {
+  async function apriModalAggiungiBici(clienteId, biciId = null) {
+    const b = biciId ? await BiciService.findById(biciId) : null;
+    document.getElementById('modal-aggiungi-bici-title').textContent = b ? '✏ Modifica Bici' : '➕ Aggiungi Bici';
+    document.getElementById('bici-id').value              = b?.id      || '';
     document.getElementById('bici-cliente-id-hidden').value = clienteId;
-    document.getElementById('form-aggiungi-bici').reset();
+    document.getElementById('bici-modello').value         = b?.modello || '';
+    document.getElementById('bici-marca').value           = b?.marca   || '';
+    document.getElementById('bici-colore').value          = b?.colore  || '';
+    document.getElementById('bici-note').value            = b?.note    || '';
     openModal('modal-aggiungi-bici');
     document.getElementById('bici-modello').focus();
   }
 
-  // ── Modal helpers ─────────────────────────────────────────────
-  function openModal(id) {
-    document.getElementById(id).classList.remove('hidden');
-    document.getElementById('overlay').classList.remove('hidden');
-  }
-
-  function closeAllModals() {
-    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-    document.getElementById('overlay').classList.add('hidden');
-  }
-
-  // ── Modal Cliente ─────────────────────────────────────────────
-  async function apriModalCliente(clienteId = null) {
-    const c = clienteId ? await ClientiService.findById(clienteId) : null;
-
-    document.getElementById('modal-cliente-title').textContent = c ? 'Modifica Cliente' : 'Nuovo Cliente';
-    document.getElementById('cliente-id').value       = c?.id       || '';
-    document.getElementById('cliente-nome').value     = c?.nome     || '';
-    document.getElementById('cliente-telefono').value = c?.telefono || '';
-    document.getElementById('cliente-email').value    = c?.email    || '';
-    document.getElementById('cliente-bici').value     = c?.bici     || '';
-    document.getElementById('cliente-note').value     = c?.note     || '';
-
-    openModal('modal-cliente');
-    document.getElementById('cliente-nome').focus();
-  }
-
   // ── Modal Ordine ──────────────────────────────────────────────
+  async function aggiornaBiciSelect(clienteId, biciIdSelezionata = null) {
+    const sel = document.getElementById('ordine-bici-id');
+    sel.innerHTML = '<option value="">— Nessuna bici specifica —</option>';
+    if (!clienteId) return;
+    const bici = await BiciService.getByCliente(clienteId);
+    bici.forEach(b => {
+      const opt       = document.createElement('option');
+      opt.value       = b.id;
+      opt.textContent = `${b.modello}${b.marca ? ' — ' + b.marca : ''}`;
+      if (b.id === biciIdSelezionata) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
   async function apriModalOrdine(ordineId = null, preselezionaClienteId = null) {
     const [ordine, clienti, lavorazioni] = await Promise.all([
       ordineId ? OrdiniService.findById(ordineId) : Promise.resolve(null),
@@ -394,15 +382,19 @@ const UI = (() => {
     const dtInput = document.getElementById('ordine-data-ingresso');
     dtInput.value = toDatetimeLocal(ordine?.dataIngresso || new Date().toISOString());
 
-    const sel = document.getElementById('ordine-cliente-id');
-    sel.innerHTML = '<option value="">— Seleziona cliente —</option>';
+    const selCliente = document.getElementById('ordine-cliente-id');
+    selCliente.innerHTML = '<option value="">— Seleziona cliente —</option>';
     clienti.forEach(c => {
       const opt       = document.createElement('option');
       opt.value       = c.id;
-      opt.textContent = `${c.nome}${c.bici ? ' — ' + c.bici : ''}`;
+      opt.textContent = c.nome;
       if (ordine?.clienteId === c.id || preselezionaClienteId === c.id) opt.selected = true;
-      sel.appendChild(opt);
+      selCliente.appendChild(opt);
     });
+
+    // Carica le bici del cliente già selezionato
+    const clienteIdAttivo = ordine?.clienteId || preselezionaClienteId || null;
+    await aggiornaBiciSelect(clienteIdAttivo, ordine?.biciId || null);
 
     document.getElementById('tbody-voci').innerHTML = '';
     (ordine?.voci || []).forEach(v => aggiungiRigaVoce(v, lavorazioni));
@@ -468,6 +460,21 @@ const UI = (() => {
     return voci;
   }
 
+  // ── Modal Cliente ─────────────────────────────────────────────
+  async function apriModalCliente(clienteId = null) {
+    const c = clienteId ? await ClientiService.findById(clienteId) : null;
+
+    document.getElementById('modal-cliente-title').textContent = c ? 'Modifica Cliente' : 'Nuovo Cliente';
+    document.getElementById('cliente-id').value       = c?.id       || '';
+    document.getElementById('cliente-nome').value     = c?.nome     || '';
+    document.getElementById('cliente-telefono').value = c?.telefono || '';
+    document.getElementById('cliente-email').value    = c?.email    || '';
+    document.getElementById('cliente-note').value     = c?.note     || '';
+
+    openModal('modal-cliente');
+    document.getElementById('cliente-nome').focus();
+  }
+
   // ── Modal Lavorazione ─────────────────────────────────────────
   async function apriModalLavorazione(lavId = null) {
     const l = lavId ? await LavorazioniService.findById(lavId) : null;
@@ -482,6 +489,17 @@ const UI = (() => {
     document.getElementById('lavorazione-nome').focus();
   }
 
+  // ── Modal helpers ─────────────────────────────────────────────
+  function openModal(id) {
+    document.getElementById(id).classList.remove('hidden');
+    document.getElementById('overlay').classList.remove('hidden');
+  }
+
+  function closeAllModals() {
+    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+    document.getElementById('overlay').classList.add('hidden');
+  }
+
   // ── Utility ───────────────────────────────────────────────────
   function toDatetimeLocal(iso) {
     if (!iso) return '';
@@ -494,7 +512,7 @@ const UI = (() => {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
     apriModalStorico, filtraStorico,
-    apriModalBiciCliente, apriModalAggiunggiBici,
+    apriModalBiciCliente, renderBiciList, apriModalAggiungiBici, aggiornaBiciSelect,
     aggiungiRigaVoce, raccogliVoci, aggiornaIncasso,
     openModal, closeAllModals,
   };
