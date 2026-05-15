@@ -27,7 +27,8 @@ router.get('/:id', (req, res) => {
 // POST /api/ordini
 router.post('/', (req, res) => {
   const {
-    clienteId, stato = 'aperto',
+    clienteId, biciId = null,
+    stato = 'aperto',
     dataIngresso, dataUscita = null,
     note = '', voci = [], totale = 0,
   } = req.body;
@@ -36,18 +37,16 @@ router.post('/', (req, res) => {
 
   const id = newId();
   db.prepare(`
-    INSERT INTO ordini (id, clienteId, stato, dataIngresso, dataUscita, note, voci, totale)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO ordini (id, clienteId, biciId, stato, dataIngresso, dataUscita, note, voci, totale)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, clienteId, stato,
+    id, clienteId, biciId || null, stato,
     dataIngresso || new Date().toISOString(),
     dataUscita, note.trim(),
     JSON.stringify(voci), totale
   );
 
-  res.status(201).json(parse(
-    db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)
-  ));
+  res.status(201).json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
 });
 
 // PUT /api/ordini/:id
@@ -58,6 +57,7 @@ router.put('/:id', (req, res) => {
 
   const {
     clienteId    = existing.clienteId,
+    biciId       = existing.biciId,
     stato        = existing.stato,
     dataIngresso = existing.dataIngresso,
     dataUscita   = existing.dataUscita,
@@ -68,9 +68,9 @@ router.put('/:id', (req, res) => {
 
   db.prepare(`
     UPDATE ordini
-    SET clienteId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?
+    SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?
     WHERE id=?
-  `).run(clienteId, stato, dataIngresso, dataUscita, note, JSON.stringify(voci), totale, id);
+  `).run(clienteId, biciId || null, stato, dataIngresso, dataUscita, note, JSON.stringify(voci), totale, id);
 
   res.json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
 });
