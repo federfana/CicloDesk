@@ -490,13 +490,25 @@ const UI = (() => {
   }
 
   // ── Modal helpers ─────────────────────────────────────────────
+  // ── Modal helpers ─────────────────────────────────────────────
   function openModal(id) {
-    document.getElementById(id).classList.remove('hidden');
+    const openCount = document.querySelectorAll('.modal:not(.hidden)').length;
+    const el = document.getElementById(id);
+    // Se c'è già un modal aperto, questo va sopra con z-index più alto
+    if (openCount > 0) {
+      el.style.zIndex = 500 + (openCount + 1) * 20;
+    } else {
+      el.style.zIndex = '';
+    }
+    el.classList.remove('hidden');
     document.getElementById('overlay').classList.remove('hidden');
   }
 
   function closeAllModals() {
-    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+    document.querySelectorAll('.modal').forEach(m => {
+      m.classList.add('hidden');
+      m.style.zIndex = '';   // resetta lo z-index inline
+    });
     document.getElementById('overlay').classList.add('hidden');
   }
 
