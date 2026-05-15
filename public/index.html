@@ -33,21 +33,18 @@
         </div>
         <div class="stat-card">
           <span class="stat-num" id="stat-num-in">0</span>
-          <span class="stat-label">In officina ora</span>
+          <span class="stat-label">In officina</span>
+        </div>
+        <div class="stat-card stat-card-pronto">
+          <span class="stat-num" id="stat-num-pronto">0</span>
+          <span class="stat-label">Pronte al ritiro</span>
         </div>
         <div class="stat-card">
           <span class="stat-num" id="stat-num-out">0</span>
-          <span class="stat-label">Usciti oggi</span>
-        </div>
-        <div class="stat-card">
-          <div class="stat-incasso-row">
-            <span class="stat-num" id="stat-num-revenue">€0</span>
-            <button id="btn-toggle-incasso" class="btn-eye" title="Mostra/Nascondi incasso">👁</button>
-          </div>
-          <span class="stat-label">Incasso oggi</span>
+          <span class="stat-label">Consegnate oggi</span>
         </div>
       </div>
-      <h3>🔧 Bici attualmente in officina</h3>
+      <h3>🔧 Bici in officina</h3>
       <div id="dashboard-in-list" class="card-list"></div>
     </section>
 
@@ -70,9 +67,15 @@
         <button id="btn-nuovo-ordine" class="btn btn-primary">+ Nuovo Ordine</button>
       </div>
       <div class="filter-bar">
-        <label><input type="radio" name="filter-ordini" value="tutti" checked /> Tutti</label>
-        <label><input type="radio" name="filter-ordini" value="aperto" /> In officina</label>
-        <label><input type="radio" name="filter-ordini" value="chiuso" /> Completati</label>
+        <label>Filtra:
+          <select id="filter-ordini">
+            <option value="tutti">Tutti</option>
+            <option value="accettata">📥 Accettati</option>
+            <option value="in_lavorazione">🔧 In lavorazione</option>
+            <option value="pronto">✅ Pronti</option>
+            <option value="consegnata">📦 Consegnati</option>
+          </select>
+        </label>
       </div>
       <div class="search-bar">
         <input type="text" id="search-ordini" placeholder="🔍 Cerca per cliente, lavorazione, note…" />
@@ -226,15 +229,33 @@
       <form id="form-aggiungi-bici" novalidate>
         <input type="hidden" id="bici-id" />
         <div class="form-grid">
-          <label>Modello *
-            <input type="text" id="bici-modello" required placeholder="Trek FX3" />
-          </label>
+
           <label>Marca
-            <input type="text" id="bici-marca" placeholder="Trek, Bianchi, Giant…" />
+            <input type="text" id="bici-marca" placeholder="Trek, Bianchi, Specialized…" />
+          </label>
+          <label>Modello *
+            <input type="text" id="bici-modello" required placeholder="FX3, Via Nirone…" />
+          </label>
+
+          <label>Tipo
+            <select id="bici-tipo">
+              <option value="strada">🚴 Strada / Gravel</option>
+              <option value="mtb">🏔️ MTB</option>
+              <option value="emtb">⚡🏔️ E-MTB</option>
+              <option value="ebike">⚡ E-Bike</option>
+            </select>
           </label>
           <label>Colore
-            <input type="text" id="bici-colore" placeholder="Rosso, Nero…" />
+            <input type="text" id="bici-colore" placeholder="Nero, Bianco…" />
           </label>
+
+          <label>Seriale forcella
+            <input type="text" id="bici-ser-forcella" placeholder="Es. FOX-2024-XXXXX" />
+          </label>
+          <label>Seriale ammortizzatore
+            <input type="text" id="bici-ser-ammortizzatore" placeholder="Es. ROCK-2024-XXXXX" />
+          </label>
+
           <label class="full-width">Note
             <textarea id="bici-note" rows="2" placeholder="Taglia, accessori, ecc."></textarea>
           </label>
