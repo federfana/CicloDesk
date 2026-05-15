@@ -225,6 +225,8 @@ const UI = (() => {
       OrdiniService.getByCliente(clienteId),
     ]);
 
+    document.getElementById('modal-storico').dataset.clienteId = clienteId;
+
     _storicoOrdini    = tuttiOrdini.sort((a, b) =>
       new Date(b.dataIngresso) - new Date(a.dataIngresso)
     );
