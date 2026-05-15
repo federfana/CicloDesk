@@ -1,11 +1,10 @@
 /**
- * bici.js — Service per gestione bici
+ * bici.js — Service per gestione bici collegate ai clienti
  */
-
 const BiciService = (() => {
 
-  async function getAll() {
-    return DB.getAll('bici');
+  async function getByCliente(clienteId) {
+    return DB.getAll(`bici?clienteId=${clienteId}`);
   }
 
   async function findById(id) {
@@ -14,9 +13,13 @@ const BiciService = (() => {
 
   async function salva(data) {
     const record = {
-      modello: (data.modello || '').trim(),
+      clienteId: data.clienteId,
+      modello:   (data.modello || '').trim(),
+      marca:     (data.marca   || '').trim(),
+      colore:    (data.colore  || '').trim(),
+      note:      (data.note    || '').trim(),
     };
-    if (data.id) return DB.update('bici', data.id, { id: data.id, ...record });
+    if (data.id) return DB.update('bici', data.id, record);
     return DB.create('bici', record);
   }
 
@@ -24,47 +27,5 @@ const BiciService = (() => {
     return DB.remove('bici', id);
   }
 
-  return { getAll, findById, salva, elimina };
-})();
-
-/**
- * BiciClientiService — Service per associazioni bici-clienti
- */
-
-const BiciClientiService = (() => {
-
-  async function getByCliente(clienteId) {
-    return DB.getAll('bici-clienti').then(all => 
-      all.filter(bc => bc.cliente_id === clienteId)
-    );
-  }
-
-  async function getByBici(biciId) {
-    return DB.getAll('bici-clienti').then(all => 
-      all.filter(bc => bc.bici_id === biciId)
-    );
-  }
-
-  async function associa(biciId, clienteId, noteAssociazione = '') {
-    const record = {
-      id: DB.newId(),
-      bici_id: biciId,
-      cliente_id: clienteId,
-      data_associazione: new Date().toISOString(),
-      data_rimozione: null,
-      note_associazione: (noteAssociazione || '').trim(),
-    };
-    return DB.create('bici-clienti', record);
-  }
-
-  async function rimuovi(associazioneId) {
-    const record = DB.findById('bici-clienti', associazioneId);
-    if (!record) return null;
-    return DB.update('bici-clienti', associazioneId, {
-      ...record,
-      data_rimozione: new Date().toISOString(),
-    });
-  }
-
-  return { getByCliente, getByBici, associa, rimuovi };
+  return { getByCliente, findById, salva, elimina };
 })();
