@@ -13,72 +13,92 @@ const UI = (() => {
     });
   }
 
-  function fmtDateOnly(iso) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleString('it-IT', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-    });
-  }
-
   function emptyState(msg) {
     return `<p class="empty-state">${msg}</p>`;
   }
 
-  // ── Incasso toggle ────────────────────────────────────────────
-  function incassoVisibile() {
-    return localStorage.getItem('incasso_visible') !== 'false';
+  // ── Badge stato ordine ────────────────────────────────────────
+  const STATO_CFG = {
+    accettata:      { cls: 'badge-accettata',      label: '📥 Accettata'        },
+    in_lavorazione: { cls: 'badge-in-lavorazione', label: '🔧 In lavorazione'   },
+    pronto:         { cls: 'badge-pronto',         label: '✅ Pronto al ritiro'  },
+    consegnata:     { cls: 'badge-consegnata',     label: '📦 Consegnata'        },
+  };
+
+  function badgeStato(stato) {
+    const cfg = STATO_CFG[stato] || STATO_CFG.accettata;
+    return `<span class="card-badge ${cfg.cls}">${cfg.label}</span>`;
   }
 
-  function aggiornaIncasso(valore) {
-    const el  = document.getElementById('stat-num-revenue');
-    const btn = document.getElementById('btn-toggle-incasso');
-    if (!el || !btn) return;
-    el.dataset.valore = fmt(valore);
-    el.textContent    = incassoVisibile() ? fmt(valore) : '€ ••••';
-    btn.textContent   = incassoVisibile() ? '👁' : '🙈';
+  // Pulsante avanza (non mostrato se già consegnata)
+  function btnAvanza(o) {
+    const labels = {
+      accettata:      '🔧 Inizia',
+      in_lavorazione: '✅ Pronto',
+      pronto:         '📦 Consegna',
+    };
+    if (!labels[o.stato]) return '';
+    return `<button class="btn btn-sm btn-primary" data-action="avanza-ordine" data-id="${o.id}">${labels[o.stato]}</button>`;
+  }
+
+  // Tipo bici: etichetta leggibile
+  const TIPO_CFG = {
+    strada: { label: '🚴 Strada',    cls: 'tag-tipo tag-strada' },
+    mtb:    { label: '🏔️ MTB',      cls: 'tag-tipo tag-mtb'    },
+    emtb:   { label: '⚡🏔️ E-MTB',  cls: 'tag-tipo tag-emtb'   },
+    ebike:  { label: '⚡ E-Bike',    cls: 'tag-tipo tag-ebike'  },
+  };
+  function tagTipo(tipo) {
+    const t = TIPO_CFG[tipo] || TIPO_CFG.strada;
+    return `<span class="${t.cls}">${t.label}</span>`;
   }
 
   // ── Dashboard ─────────────────────────────────────────────────
   async function renderDashboard() {
-    const [aperti, chiusiOggi, clienti] = await Promise.all([
-      OrdiniService.getAperti(),
-      OrdiniService.getChiusiOggi(),
+    const [tutti, clienti] = await Promise.all([
+      OrdiniService.getAll(),
       ClientiService.getAll(),
     ]);
-    const incasso = OrdiniService.calcolaIncasso(chiusiOggi);
+
+    const inOfficina = tutti.filter(o => o.stato !== 'consegnata');
+    const pronti     = tutti.filter(o => o.stato === 'pronto');
+    const oggi       = new Date().toDateString();
+    const consOggi   = tutti.filter(o =>
+      o.stato === 'consegnata' && o.dataUscita &&
+      new Date(o.dataUscita).toDateString() === oggi
+    );
 
     document.getElementById('stat-num-clienti').textContent = clienti.length;
-    document.getElementById('stat-num-in').textContent      = aperti.length;
-    document.getElementById('stat-num-out').textContent     = chiusiOggi.length;
-    aggiornaIncasso(incasso);
+    document.getElementById('stat-num-in').textContent      = inOfficina.length;
+    document.getElementById('stat-num-pronto').textContent  = pronti.length;
+    document.getElementById('stat-num-out').textContent     = consOggi.length;
 
     const container  = document.getElementById('dashboard-in-list');
     const clientiMap = Object.fromEntries(clienti.map(c => [c.id, c]));
 
-    if (!aperti.length) {
+    if (!inOfficina.length) {
       container.innerHTML = emptyState('Nessuna bici in officina al momento.');
       return;
     }
 
-    container.innerHTML = aperti.map(o => {
-      const c        = clientiMap[o.clienteId];
-      const biciInfo = o.biciNome || o.biciId || '';
+    container.innerHTML = inOfficina.map(o => {
+      const c = clientiMap[o.clienteId];
       return `
-        <div class="card stato-aperto">
+        <div class="card stato-${o.stato}">
           <div class="card-row">
             <span class="card-title">🚲 ${c ? c.nome : 'Cliente sconosciuto'}</span>
-            <span class="card-badge badge-aperto">In officina</span>
+            ${badgeStato(o.stato)}
           </div>
           <span class="card-sub">
-            ${biciInfo || c?.bici || '—'} &nbsp;|&nbsp; Ingresso: ${fmtDate(o.dataIngresso)}
+            ${o.biciNome || '—'} &nbsp;|&nbsp; Ingresso: ${fmtDate(o.dataIngresso)}
           </span>
           <span class="card-sub">
             ${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} —
             <strong>${fmt(o.totale)}</strong>
           </span>
           <div class="card-actions">
-            <button class="btn btn-sm btn-success"   data-action="chiudi-ordine" data-id="${o.id}">✔ Segna uscita</button>
-            <button class="btn btn-sm btn-secondary" data-action="edit-ordine"   data-id="${o.id}">✏ Modifica</button>
+            ${btnAvanza(o)}
+            <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏ Modifica</button>
           </div>
         </div>`;
     }).join('');
@@ -99,8 +119,8 @@ const UI = (() => {
 
     container.innerHTML = clienti.map(c => {
       const ordini      = tuttiOrdini.filter(o => o.clienteId === c.id);
-      const aperti      = ordini.filter(o => o.stato === 'aperto').length;
-      const totaleSpeso = OrdiniService.calcolaIncasso(ordini.filter(o => o.stato === 'chiuso'));
+      const attivi      = ordini.filter(o => o.stato !== 'consegnata').length;
+      const totaleSpeso = OrdiniService.calcolaIncasso(ordini.filter(o => o.stato === 'consegnata'));
       return `
         <div class="card">
           <div class="card-row">
@@ -119,7 +139,7 @@ const UI = (() => {
           ${c.note ? `<span class="card-sub">📝 ${c.note}</span>` : ''}
           <span class="card-sub">
             ${ordini.length} interventi &nbsp;|&nbsp; Speso: ${fmt(totaleSpeso)}
-            ${aperti > 0 ? `&nbsp;<span class="card-badge badge-aperto">${aperti} in corso</span>` : ''}
+            ${attivi > 0 ? `&nbsp;<span class="card-badge badge-in-lavorazione">${attivi} in corso</span>` : ''}
           </span>
         </div>`;
     }).join('');
@@ -167,7 +187,7 @@ const UI = (() => {
         <div class="card stato-${o.stato}">
           <div class="card-row">
             <span class="card-title">👤 ${c ? c.nome : 'Cliente rimosso'}</span>
-            <span class="card-badge badge-${o.stato}">${o.stato === 'aperto' ? '🔧 In officina' : '✅ Completato'}</span>
+            ${badgeStato(o.stato)}
           </div>
           <span class="card-sub">
             ${o.biciNome ? `🚲 ${o.biciNome} &nbsp;|&nbsp; ` : ''}
@@ -179,9 +199,10 @@ const UI = (() => {
           <div class="card-row">
             <strong>${fmt(o.totale)}</strong>
             <div class="card-actions">
-              ${o.stato === 'aperto'
-                ? `<button class="btn btn-sm btn-success"   data-action="chiudi-ordine" data-id="${o.id}">✔ Chiudi</button>`
-                : `<button class="btn btn-sm btn-secondary" data-action="riapri-ordine" data-id="${o.id}">↩ Riapri</button>`}
+              ${btnAvanza(o)}
+              ${o.stato === 'consegnata'
+                ? `<button class="btn btn-sm btn-secondary" data-action="riapri-ordine" data-id="${o.id}">↩ Riapri</button>`
+                : ''}
               <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏</button>
               <button class="btn btn-sm btn-danger"    data-action="del-ordine"  data-id="${o.id}">🗑</button>
             </div>
@@ -236,12 +257,12 @@ const UI = (() => {
     document.getElementById('storico-cliente-info').textContent =
       [cliente.telefono, cliente.email].filter(Boolean).join('  ·  ');
 
-    const chiusi      = _storicoOrdini.filter(o => o.stato === 'chiuso');
-    const totaleSpeso = OrdiniService.calcolaIncasso(chiusi);
-    const media       = chiusi.length ? totaleSpeso / chiusi.length : 0;
+    const consegnati  = _storicoOrdini.filter(o => o.stato === 'consegnata');
+    const totaleSpeso = OrdiniService.calcolaIncasso(consegnati);
+    const media       = consegnati.length ? totaleSpeso / consegnati.length : 0;
 
     document.getElementById('storico-stat-ordini').textContent = _storicoOrdini.length;
-    document.getElementById('storico-stat-chiusi').textContent = chiusi.length;
+    document.getElementById('storico-stat-chiusi').textContent = consegnati.length;
     document.getElementById('storico-stat-speso').textContent  = fmt(totaleSpeso);
     document.getElementById('storico-stat-media').textContent  = fmt(media);
     document.getElementById('storico-stat-ultima').textContent =
@@ -264,21 +285,18 @@ const UI = (() => {
       const vociHtml = o.voci.map(v =>
         `<span class="tag">${v.nome} — ${fmt(v.prezzo)}${v.note ? ` (${v.note})` : ''}</span>`
       ).join('');
-
       return `
         <div class="storico-ordine-card stato-${o.stato}">
           <div class="storico-ordine-header">
             <div>
               <span class="storico-ordine-data">📅 ${fmtDate(o.dataIngresso)}</span>
               ${o.dataUscita
-                ? `<span class="storico-ordine-uscita">→ uscita ${fmtDate(o.dataUscita)}</span>`
+                ? `<span class="storico-ordine-uscita">→ ${fmtDate(o.dataUscita)}</span>`
                 : ''}
               ${o.biciNome ? `<span class="card-sub" style="margin-left:.4rem">🚲 ${o.biciNome}</span>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:.6rem;">
-              <span class="card-badge badge-${o.stato}">
-                ${o.stato === 'aperto' ? '🔧 In corso' : '✅ Completato'}
-              </span>
+              ${badgeStato(o.stato)}
               <span class="storico-ordine-totale">${fmt(o.totale)}</span>
               <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏</button>
             </div>
@@ -312,8 +330,8 @@ const UI = (() => {
       ClientiService.findById(clienteId),
       BiciService.getByCliente(clienteId),
     ]);
-    document.getElementById('bici-cliente-nome').textContent    = cliente.nome;
-    document.getElementById('bici-cliente-id-hidden').value     = clienteId;
+    document.getElementById('bici-cliente-nome').textContent = cliente.nome;
+    document.getElementById('bici-cliente-id-hidden').value  = clienteId;
     renderBiciList(bici);
     openModal('modal-bici-cliente');
   }
@@ -324,35 +342,42 @@ const UI = (() => {
       container.innerHTML = emptyState('Nessuna bici associata. Clicca "+ Aggiungi Bici".');
       return;
     }
-    container.innerHTML = bici.map(b => `
-      <div class="card" style="margin-bottom:.5rem">
-        <div class="card-row">
-          <span class="card-title">
-            🚲 ${b.modello}
-            ${b.marca  ? `<span class="card-sub" style="font-weight:400"> — ${b.marca}</span>` : ''}
-            ${b.colore ? `<span class="card-sub" style="font-weight:400"> (${b.colore})</span>` : ''}
-          </span>
-          <div class="card-actions">
-            <button class="btn btn-sm btn-secondary" data-action="edit-bici" data-id="${b.id}">✏</button>
-            <button class="btn btn-sm btn-danger"    data-action="del-bici"  data-id="${b.id}">🗑</button>
+    container.innerHTML = bici.map(b => {
+      const nome = [b.marca, b.modello].filter(Boolean).join(' ');
+      return `
+        <div class="card" style="margin-bottom:.5rem">
+          <div class="card-row">
+            <span class="card-title">🚲 ${nome}</span>
+            <div class="card-actions">
+              ${tagTipo(b.tipo)}
+              <button class="btn btn-sm btn-secondary" data-action="edit-bici" data-id="${b.id}">✏</button>
+              <button class="btn btn-sm btn-danger"    data-action="del-bici"  data-id="${b.id}">🗑</button>
+            </div>
           </div>
-        </div>
-        ${b.note ? `<span class="card-sub">📝 ${b.note}</span>` : ''}
-      </div>`
-    ).join('');
+          <div class="card-sub" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.2rem">
+            ${b.colore ? `<span>🎨 ${b.colore}</span>` : ''}
+            ${b.seriale_forcella ? `<span>🔧 Forcella: ${b.seriale_forcella}</span>` : ''}
+            ${b.seriale_ammortizzatore ? `<span>🔧 Ammortizzatore: ${b.seriale_ammortizzatore}</span>` : ''}
+          </div>
+          ${b.note ? `<span class="card-sub">📝 ${b.note}</span>` : ''}
+        </div>`;
+    }).join('');
   }
 
   async function apriModalAggiungiBici(clienteId, biciId = null) {
     const b = biciId ? await BiciService.findById(biciId) : null;
     document.getElementById('modal-aggiungi-bici-title').textContent = b ? '✏ Modifica Bici' : '➕ Aggiungi Bici';
-    document.getElementById('bici-id').value              = b?.id      || '';
-    document.getElementById('bici-cliente-id-hidden').value = clienteId;
-    document.getElementById('bici-modello').value         = b?.modello || '';
-    document.getElementById('bici-marca').value           = b?.marca   || '';
-    document.getElementById('bici-colore').value          = b?.colore  || '';
-    document.getElementById('bici-note').value            = b?.note    || '';
+    document.getElementById('bici-id').value                         = b?.id      || '';
+    document.getElementById('bici-cliente-id-hidden').value          = clienteId;
+    document.getElementById('bici-marca').value                      = b?.marca   || '';
+    document.getElementById('bici-modello').value                    = b?.modello || '';
+    document.getElementById('bici-tipo').value                       = b?.tipo    || 'strada';
+    document.getElementById('bici-colore').value                     = b?.colore  || '';
+    document.getElementById('bici-ser-forcella').value               = b?.seriale_forcella       || '';
+    document.getElementById('bici-ser-ammortizzatore').value         = b?.seriale_ammortizzatore || '';
+    document.getElementById('bici-note').value                       = b?.note    || '';
     openModal('modal-aggiungi-bici');
-    document.getElementById('bici-modello').focus();
+    document.getElementById('bici-marca').focus();
   }
 
   // ── Modal Ordine ──────────────────────────────────────────────
@@ -364,7 +389,7 @@ const UI = (() => {
     bici.forEach(b => {
       const opt       = document.createElement('option');
       opt.value       = b.id;
-      opt.textContent = `${b.modello}${b.marca ? ' — ' + b.marca : ''}`;
+      opt.textContent = [b.marca, b.modello].filter(Boolean).join(' ');
       if (b.id === biciIdSelezionata) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -394,7 +419,6 @@ const UI = (() => {
       selCliente.appendChild(opt);
     });
 
-    // Carica le bici del cliente già selezionato
     const clienteIdAttivo = ordine?.clienteId || preselezionaClienteId || null;
     await aggiornaBiciSelect(clienteIdAttivo, ordine?.biciId || null);
 
@@ -465,14 +489,12 @@ const UI = (() => {
   // ── Modal Cliente ─────────────────────────────────────────────
   async function apriModalCliente(clienteId = null) {
     const c = clienteId ? await ClientiService.findById(clienteId) : null;
-
     document.getElementById('modal-cliente-title').textContent = c ? 'Modifica Cliente' : 'Nuovo Cliente';
     document.getElementById('cliente-id').value       = c?.id       || '';
     document.getElementById('cliente-nome').value     = c?.nome     || '';
     document.getElementById('cliente-telefono').value = c?.telefono || '';
     document.getElementById('cliente-email').value    = c?.email    || '';
     document.getElementById('cliente-note').value     = c?.note     || '';
-
     openModal('modal-cliente');
     document.getElementById('cliente-nome').focus();
   }
@@ -480,23 +502,19 @@ const UI = (() => {
   // ── Modal Lavorazione ─────────────────────────────────────────
   async function apriModalLavorazione(lavId = null) {
     const l = lavId ? await LavorazioniService.findById(lavId) : null;
-
     document.getElementById('modal-lavorazione-title').textContent = l ? 'Modifica Lavorazione' : 'Nuova Lavorazione';
     document.getElementById('lavorazione-id').value          = l?.id          || '';
     document.getElementById('lavorazione-nome').value        = l?.nome        || '';
     document.getElementById('lavorazione-prezzo').value      = l ? l.prezzo.toFixed(2) : '';
     document.getElementById('lavorazione-descrizione').value = l?.descrizione || '';
-
     openModal('modal-lavorazione');
     document.getElementById('lavorazione-nome').focus();
   }
 
   // ── Modal helpers ─────────────────────────────────────────────
-  // ── Modal helpers ─────────────────────────────────────────────
   function openModal(id) {
     const openCount = document.querySelectorAll('.modal:not(.hidden)').length;
     const el = document.getElementById(id);
-    // Se c'è già un modal aperto, questo va sopra con z-index più alto
     if (openCount > 0) {
       el.style.zIndex = 500 + (openCount + 1) * 20;
     } else {
@@ -509,7 +527,7 @@ const UI = (() => {
   function closeAllModals() {
     document.querySelectorAll('.modal').forEach(m => {
       m.classList.add('hidden');
-      m.style.zIndex = '';   // resetta lo z-index inline
+      m.style.zIndex = '';
     });
     document.getElementById('overlay').classList.add('hidden');
   }
@@ -527,7 +545,7 @@ const UI = (() => {
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
     apriModalStorico, filtraStorico,
     apriModalBiciCliente, renderBiciList, apriModalAggiungiBici, aggiornaBiciSelect,
-    aggiungiRigaVoce, raccogliVoci, aggiornaIncasso,
+    aggiungiRigaVoce, raccogliVoci,
     openModal, closeAllModals,
   };
 })();
