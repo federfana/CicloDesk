@@ -6,9 +6,12 @@ function newId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-// GET /api/bici
-router.get('/', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM bici ORDER BY modello ASC').all();
+// GET /api/bici?clienteId=xxx
+router.get('/', (req, res) => {
+  const { clienteId } = req.query;
+  const rows = clienteId
+    ? db.prepare('SELECT * FROM bici WHERE clienteId = ? ORDER BY modello ASC').all(clienteId)
+    : db.prepare('SELECT * FROM bici ORDER BY modello ASC').all();
   res.json(rows);
 });
 
@@ -21,39 +24,46 @@ router.get('/:id', (req, res) => {
 
 // POST /api/bici
 router.post('/', (req, res) => {
-  const { modello } = req.body;
+  const { clienteId, modello, marca = '', colore = '', note = '' } = req.body;
+  if (!clienteId) return res.status(400).json({ error: 'clienteId obbligatorio' });
   if (!modello?.trim()) return res.status(400).json({ error: 'Modello obbligatorio' });
 
   const id        = newId();
   const createdAt = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO bici (id, modello, createdAt)
-    VALUES (?, ?, ?)
-  `).run(id, modello.trim(), createdAt);
+    INSERT INTO bici (id, clienteId, modello, marca, colore, note, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, clienteId, modello.trim(), marca.trim(), colore.trim(), note.trim(), createdAt);
 
-  res.status(201).json({ id, modello: modello.trim(), createdAt });
+  res.status(201).json(db.prepare('SELECT * FROM bici WHERE id = ?').get(id));
 });
 
 // PUT /api/bici/:id
 router.put('/:id', (req, res) => {
   const { id } = req.params;
-  const { modello } = req.body;
-
   const existing = db.prepare('SELECT * FROM bici WHERE id = ?').get(id);
   if (!existing) return res.status(404).json({ error: 'Bici non trovata' });
 
-  db.prepare(`
-    UPDATE bici SET modello=? WHERE id=?
-  `).run(modello?.trim() || existing.modello, id);
+  const {
+    modello = existing.modello,
+    marca   = existing.marca,
+    colore  = existing.colore,
+    note    = existing.note,
+  } = req.body;
 
-  res.json({ ...existing, modello: modello?.trim() || existing.modello });
+  db.prepare(`
+    UPDATE bici SET modello=?, marca=?, colore=?, note=? WHERE id=?
+  `).run(modello.trim(), marca.trim(), colore.trim(), note.trim(), id);
+
+  res.json(db.prepare('SELECT * FROM bici WHERE id = ?').get(id));
 });
 
 // DELETE /api/bici/:id
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
-  db.prepare('DELETE FROM bici_clienti WHERE bici_id = ?').run(id);
+  // Scollega la bici dagli ordini senza eliminarli
+  db.prepare('UPDATE ordini SET biciId = NULL WHERE biciId = ?').run(id);
   db.prepare('DELETE FROM bici WHERE id = ?').run(id);
   res.json({ ok: true });
 });
