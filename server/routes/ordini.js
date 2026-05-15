@@ -2,6 +2,8 @@ const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
 
+const STATI_VALIDI = ['accettata', 'in_lavorazione', 'pronto', 'consegnata'];
+
 function newId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -28,22 +30,23 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const {
     clienteId, biciId = null,
-    stato = 'aperto',
+    stato = 'accettata',
     dataIngresso, dataUscita = null,
     note = '', voci = [], totale = 0,
   } = req.body;
 
   if (!clienteId) return res.status(400).json({ error: 'clienteId obbligatorio' });
 
+  const statoFinal = STATI_VALIDI.includes(stato) ? stato : 'accettata';
   const id = newId();
+
   db.prepare(`
     INSERT INTO ordini (id, clienteId, biciId, stato, dataIngresso, dataUscita, note, voci, totale)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, clienteId, biciId || null, stato,
+    id, clienteId, biciId || null, statoFinal,
     dataIngresso || new Date().toISOString(),
-    dataUscita, note.trim(),
-    JSON.stringify(voci), totale
+    dataUscita, note.trim(), JSON.stringify(voci), totale
   );
 
   res.status(201).json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
@@ -66,11 +69,21 @@ router.put('/:id', (req, res) => {
     totale       = existing.totale,
   } = req.body;
 
+  const statoFinal = STATI_VALIDI.includes(stato) ? stato : existing.stato;
+  // Imposta dataUscita solo quando si consegna
+  const dataUscitaFinal = statoFinal === 'consegnata'
+    ? (dataUscita || new Date().toISOString())
+    : null;
+
   db.prepare(`
     UPDATE ordini
     SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?
     WHERE id=?
-  `).run(clienteId, biciId || null, stato, dataIngresso, dataUscita, note, JSON.stringify(voci), totale, id);
+  `).run(
+    clienteId, biciId || null, statoFinal,
+    dataIngresso, dataUscitaFinal,
+    note, JSON.stringify(voci), totale, id
+  );
 
   res.json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
 });
