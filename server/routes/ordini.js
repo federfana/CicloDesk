@@ -13,23 +13,32 @@ function parse(row) {
 // GET /api/ordini
 router.get('/', (_req, res) => {
   const rows = db.prepare(`
-    SELECT * FROM ordini
+    SELECT o.*,
+      TRIM(COALESCE(b.marca, '') || CASE WHEN b.marca != '' AND b.modello != '' THEN ' ' ELSE '' END || COALESCE(b.modello, '')) AS biciNome
+    FROM ordini o
+    LEFT JOIN bici b ON b.id = o.biciId
     ORDER BY
-      CASE stato
+      CASE o.stato
         WHEN 'accettata'      THEN 0
         WHEN 'in_lavorazione' THEN 1
         WHEN 'pronto'         THEN 2
         WHEN 'consegnata'     THEN 3
         ELSE 4
       END ASC,
-      dataIngresso DESC
+      o.dataIngresso DESC
   `).all();
   res.json(rows.map(parse));
 });
 
 // GET /api/ordini/:id
 router.get('/:id', (req, res) => {
-  const row = db.prepare('SELECT * FROM ordini WHERE id = ?').get(req.params.id);
+  const row = db.prepare(`
+    SELECT o.*,
+      TRIM(COALESCE(b.marca, '') || CASE WHEN b.marca != '' AND b.modello != '' THEN ' ' ELSE '' END || COALESCE(b.modello, '')) AS biciNome
+    FROM ordini o
+    LEFT JOIN bici b ON b.id = o.biciId
+    WHERE o.id = ?
+  `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Ordine non trovato' });
   res.json(parse(row));
 });

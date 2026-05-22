@@ -95,7 +95,7 @@ const UI = (() => {
       return `
         <div class="card stato-${o.stato}">
           <div class="card-row">
-            <span class="card-title">🚲 ${c ? c.nome : 'Cliente sconosciuto'}</span>
+            <span class="card-title">🚲 ${c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto'}</span>
             ${badgeStato(o.stato)}
           </div>
           <span class="card-sub">
@@ -196,7 +196,7 @@ const UI = (() => {
       return `
         <div class="card stato-${o.stato}">
           <div class="card-row">
-            <span class="card-title">👤 ${c ? c.nome : 'Cliente rimosso'}</span>
+            <span class="card-title">👤 ${c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente rimosso'}</span>
             ${badgeStato(o.stato)}
           </div>
           <span class="card-sub">
@@ -461,24 +461,51 @@ const UI = (() => {
       suggestions.classList.toggle('hidden', matches.length === 0);
     }
 
-    function selectCliente(display, id) {
-      inputCliente.value = display;
+    const originalClienteId      = ordine?.clienteId || null;
+    let   originalClienteDisplay  = '';
+
+    function selectCliente(display, id, skipConfirm = false) {
+      if (!skipConfirm && originalClienteId && id && id !== originalClienteId) {
+        if (!confirm('Stai cambiando il cliente dell\'ordine. Sei sicuro?')) {
+          // Ripristina valore originale
+          inputCliente.value  = originalClienteDisplay;
+          hiddenCliente.value = originalClienteId;
+          suggestions.classList.add('hidden');
+          return;
+        }
+      }
+      inputCliente.value  = display;
       hiddenCliente.value = id || '';
       suggestions.classList.add('hidden');
+      if (!skipConfirm) aggiornaBiciSelect(id || null, ordine?.biciId || null);
     }
 
     // Preseleziona cliente se necessario
     if (ordine?.clienteId) {
       const c = clienti.find(x => x.id === ordine.clienteId);
-      if (c) selectCliente(displayFor(c), c.id);
+      if (c) {
+        selectCliente(displayFor(c), c.id, true);
+        originalClienteDisplay = displayFor(c);
+      }
     } else if (preselezionaClienteId) {
       const c = clienti.find(x => x.id === preselezionaClienteId);
-      if (c) selectCliente(displayFor(c), c.id);
+      if (c) selectCliente(displayFor(c), c.id, true);
     }
 
     inputCliente.oninput = function () {
-      const val = this.value;
-      hiddenCliente.value = displayMap[val] || '';
+      const val     = this.value;
+      const newId   = displayMap[val] || '';
+      // Se in modifica e il testo corrisponde a un cliente diverso, chiedi conferma
+      if (originalClienteId && newId && newId !== originalClienteId) {
+        if (!confirm('Stai cambiando il cliente dell\'ordine. Sei sicuro?')) {
+          inputCliente.value  = originalClienteDisplay;
+          hiddenCliente.value = originalClienteId;
+          suggestions.classList.add('hidden');
+          aggiornaBiciSelect(originalClienteId, ordine?.biciId || null);
+          return;
+        }
+      }
+      hiddenCliente.value = newId;
       if (!val.trim()) hiddenCliente.value = '';
       renderClientSuggestions(val);
       aggiornaBiciSelect(hiddenCliente.value || null, ordine?.biciId || null);
@@ -505,7 +532,7 @@ const UI = (() => {
     // Costruisce mappa lavorazioni per il dropdown custom
     _lavorazioniMap = {};
     lavorazioni.forEach(l => {
-      const disp = `${l.nome}${l.prezzo ? ' — \u20ac\u00a0' + l.prezzo.toFixed(2) : ''}`;
+      const disp = l.nome;
       _lavorazioniMap[disp] = { id: l.id, prezzo: l.prezzo, nome: l.nome, display: disp };
       _lavorazioniMap[l.id] = _lavorazioniMap[disp];
     });
@@ -526,7 +553,7 @@ const UI = (() => {
         <div class="lav-suggestions hidden"></div>
       </td>
       <td><input type="text"   class="inp-note-voce"   placeholder="Note…" value="${voce.note   || ''}" /></td>
-      <td><input type="number" class="inp-prezzo-voce" step="0.01" min="0"  value="${voce.prezzo || 0}" style="width:90px" /></td>
+      <td><input type="number" class="inp-prezzo-voce" step="0.10" min="0"  value="${parseFloat(voce.prezzo || 0).toFixed(2)}" style="width:90px" /></td>
       <td><button type="button" class="btn btn-sm btn-danger btn-rimuovi-voce">✕</button></td>
     `;
 
@@ -560,11 +587,11 @@ const UI = (() => {
       aggiornaLocale();
     }
 
-    // Pre-fill se voce esistente
+    // Pre-fill se voce esistente: aggiorna solo la label, NON il prezzo
+    // (il prezzo salvato nell'ordine è già impostato nell'input via HTML)
     if (hidLav.value && _lavorazioniMap[hidLav.value]) {
       const m = _lavorazioniMap[hidLav.value];
-      inpLav.value = m.display || m.nome;
-      priceI.value = (m.prezzo || 0).toFixed(2);
+      inpLav.value = m.nome;
     }
 
     inpLav.addEventListener('focus', () => renderLavSuggestions(''));

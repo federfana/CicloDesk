@@ -213,11 +213,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Submit Cliente ────────────────────────────────────────────
   document.getElementById('form-cliente').addEventListener('submit', async e => {
     e.preventDefault();
-    const nome = document.getElementById('cliente-nome').value.trim();
-    const cognome = document.getElementById('cliente-cognome').value.trim();
-    const tel  = document.getElementById('cliente-telefono').value.trim();
-    if (!nome) return alert('Il nome è obbligatorio.');
-    if (!tel)  return alert('Il telefono è obbligatorio.');
+    const nome    = document.getElementById('cliente-nome').value.trim();
+    const cognome  = document.getElementById('cliente-cognome').value.trim();
+    const tel      = document.getElementById('cliente-telefono').value.trim();
+    if (!nome)    return alert('Il nome è obbligatorio.');
+    if (!cognome) return alert('Il cognome è obbligatorio.');
+    if (!tel)     return alert('Il telefono è obbligatorio.');
     try {
       await ClientiService.salva({
         id:       document.getElementById('cliente-id').value || null,
