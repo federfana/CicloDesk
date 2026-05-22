@@ -396,7 +396,7 @@ Cosa fa:
 ```
 Espone 5 endpoint HTTP:
 
-GET    /api/clienti       → tutti i clienti (ordinati per nome)
+GET    /api/clienti       → tutti i clienti (ordinati per cognome, poi nome)
 GET    /api/clienti/:id   → singolo cliente
 POST   /api/clienti       → crea cliente
 PUT    /api/clienti/:id   → aggiorna cliente
@@ -757,7 +757,7 @@ Tutte le API accettano e restituiscono **JSON**.
 
 | Metodo | Endpoint | Descrizione |
 |---|---|---|
-| `GET` | `/api/clienti` | Lista tutti i clienti (ordinati per nome) |
+| `GET` | `/api/clienti` | Lista tutti i clienti (ordinati per cognome, poi nome) |
 | `GET` | `/api/clienti/:id` | Dettaglio singolo cliente |
 | `POST` | `/api/clienti` | Crea nuovo cliente |
 | `PUT` | `/api/clienti/:id` | Aggiorna cliente esistente |
@@ -1102,6 +1102,7 @@ const PORT = process.env.PORT || 3001;
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.6.0** | 2026-05-22 | **Aggiornamenti tecnici:** Node.js v22 LTS come versione consigliata (v20 EOL); `better-sqlite3` aggiornato a v12.10.0 (supporto nativo Node.js v22, binari precompilati). **Fix:** doppia bici nel dropdown modifica ordine (race condition tra due chiamate concorrenti ad `aggiornaBiciSelect`). **UX:** clienti ordinati per cognome → nome (stile rubrica) |
 | **1.5.0** | 2026-05-22 | **Qualità e UX:** toast verde di conferma dopo ogni salvataggio/eliminazione; ordinamento ordini per urgenza (aperti prima, poi per data); filtro ordini persistente tra sessioni (`sessionStorage`); conferma eliminazione cliente con conteggio ordini e bici; eliminazione lavorazione bloccata se usata in ordini attivi. **Dropdown custom** uniformi per clienti e lavorazioni (stesso stile su tutti i browser; ri-apertura dropdown su voce già selezionata). **Validazioni:** almeno una lavorazione obbligatoria per ordine; prezzo negativo rifiutato lato server. **Codice:** `server/utils.js` con `newId()` centralizzata; campo `bici` rimosso da clienti (era inutilizzato); data iscrizione cliente visibile nella scheda |
 | **1.4.0** | 2026-05-22 | **Scheda clienti:** aggiunto campo `cognome` (form, card, storico, modal bici). **Ordini:** aggiunto flag `pagato`. **Migrazioni automatiche** al riavvio per entrambe le colonne (`ALTER TABLE` solo se mancanti — dati esistenti intatti). Aggiunta sezione "Procedura di aggiornamento senza perdita dati" |
 | **1.3.0** | 2026-05-15 | **Scheda bici** arricchita: tipo bici con menu a tendina (Strada/MTB/E-MTB/E-Bike), ordine campi invertito marca→modello, seriale forcella e seriale ammortizzatore. **4 stati ordine** con avanzamento sequenziale: accettata → in_lavorazione → pronto → consegnata; `dataUscita` impostata automaticamente alla consegna. **Dashboard** senza incasso: 4 card (clienti, in officina, pronte al ritiro, consegnate oggi). Filtro ordini come menu a tendina. `db.js` ripulito (fase sviluppo, no migrazioni) |
