@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function showLoading() { _loadingCount++; loadingOverlay.classList.add('visible'); }
   function hideLoading() { _loadingCount = Math.max(0, _loadingCount - 1); if (!_loadingCount) loadingOverlay.classList.remove('visible'); }
 
+  // ── Dirty form tracking ───────────────────────────────────────
+  let _formDirty = false;
+
   // ── Navigazione view ──────────────────────────────────────────
   let currentView = 'dashboard';
 
@@ -433,7 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Render iniziale ───────────────────────────────────────────
   // Dirty form — avvisa prima di chiudere se ci sono modifiche
-  let _formDirty = false;
   document.querySelectorAll('#form-ordine input, #form-ordine textarea, #form-ordine select, #form-cliente input, #form-cliente textarea').forEach(el => {
     el.addEventListener('input', () => { _formDirty = true; });
     el.addEventListener('change', () => { _formDirty = true; });

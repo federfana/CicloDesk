@@ -682,14 +682,13 @@ const UI = (() => {
   function renderFotoPreview() {
     const container = document.getElementById('ordine-foto-preview');
     if (!_ordineFoto.length) { container.innerHTML = ''; return; }
-    container.innerHTML = _ordineFoto
-      .filter(src => typeof src === 'string' && src.startsWith('data:image/'))
-      .map((src, i) =>
-      `<div class="foto-thumb">
+    container.innerHTML = _ordineFoto.map((src, i) => {
+      if (typeof src !== 'string' || !src.startsWith('data:image/')) return '';
+      return `<div class="foto-thumb">
         <img src="${src}" alt="Foto ${i+1}" />
         <button type="button" class="btn-foto-remove" data-foto-idx="${i}" aria-label="Rimuovi foto">✕</button>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
   }
 
   function getOrdineFoto() {

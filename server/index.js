@@ -16,11 +16,11 @@ app.use('/api/lavorazioni', require('./routes/lavorazioni'));
 app.use('/api/bici',        require('./routes/bici'));
 
 // ── Backup / Export database ───────────────────────────────────
-app.get('/api/backup', (_req, res) => {
+app.get('/api/backup', async (_req, res) => {
   const db = require('./db');
   const tmpPath = path.join(__dirname, '..', 'data', `backup-${Date.now()}.db`);
   try {
-    db.backup(tmpPath);
+    await db.backup(tmpPath);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     res.setHeader('Content-Disposition', `attachment; filename="ciclo-backup-${timestamp}.db"`);
     res.setHeader('Content-Type', 'application/octet-stream');
