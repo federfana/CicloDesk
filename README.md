@@ -19,9 +19,10 @@
 10. [API REST — Riferimento](#10-api-rest--riferimento)
 11. [Database](#11-database)
 12. [Backup e ripristino](#12-backup-e-ripristino)
-13. [Risoluzione problemi](#13-risoluzione-problemi)
-14. [Aggiornamenti futuri consigliati](#14-aggiornamenti-futuri-consigliati)
-15. [Note di versione](#15-note-di-versione)
+13. [Procedura di aggiornamento senza perdita dati](#13-procedura-di-aggiornamento-senza-perdita-dati)
+14. [Risoluzione problemi](#14-risoluzione-problemi)
+15. [Aggiornamenti futuri consigliati](#15-aggiornamenti-futuri-consigliati)
+16. [Note di versione](#16-note-di-versione)
 
 ---
 
@@ -57,6 +58,7 @@ ciclodesk/
 ├── server/
 │   ├── index.js              # Entry point — server Express
 │   ├── db.js                 # Connessione SQLite, schema, seed
+│   ├── utils.js              # Utilità condivise (newId)
 │   └── routes/
 │       ├── clienti.js        # GET/POST/PUT/DELETE /api/clienti
 │       ├── ordini.js         # GET/POST/PUT/DELETE /api/ordini
@@ -246,10 +248,13 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 - Lista bici attualmente in officina con badge stato colorato e pulsante avanzamento rapido
 
 ### Schede Clienti
-- Anagrafica: nome, telefono, email, note libere
-- Ricerca live su nome, telefono, email
+- Anagrafica: nome, **cognome**, telefono, email, note libere
+- Data iscrizione "cliente dal DD/MM/YYYY" visibile nella scheda
+- Ricerca live su nome, cognome, telefono, email
+- Dropdown clienti con suggerimenti custom (uniforme su tutti i browser)
 - Totale speso e numero interventi attivi in ogni card
 - Accesso rapido a **🚲 Bici**, **📋 Storico**, **+ Ordine**, modifica ed eliminazione
+- Conferma eliminazione mostra il conteggio di ordini e bici associate
 
 ### 🚲 Gestione Multi-Bici per Cliente *(v1.2.0)*
 - Ogni cliente può avere **più bici** registrate
@@ -284,15 +289,20 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 | ✅ Pronto al ritiro | Verde | `badge-pronto` | 📦 Consegna |
 | 📦 Consegnata | Grigio | `badge-consegnata` | — |
 
-- Filtro per stato tramite menu a tendina
+- Filtro per stato tramite menu a tendina — **filtro salvato tra una sessione e l'altra**
 - Ricerca full-text su cliente, bici, lavorazioni, note
 - Riapertura ordine consegnato → torna a "In lavorazione"
+- **Ordini attivi mostrati prima** (accettati → in lavorazione → pronti), poi consegnati per data
+- Obbligatorio aggiungere almeno una lavorazione prima di salvare
+- Toast di conferma verde dopo ogni salvataggio
 
 ### Catalogo Lavorazioni
 - Gestione del listino prezzi dell'officina
 - 13 lavorazioni predefinite al primo avvio
 - Aggiunta, modifica ed eliminazione
 - Il prezzo viene proposto automaticamente negli ordini ma è sempre modificabile
+- **Eliminazione bloccata** se la lavorazione è presente in uno o più ordini (con conteggio)
+- Dropdown lavorazioni con suggerimenti custom (uniforme su tutti i browser)
 
 ---
 
@@ -375,8 +385,7 @@ Cosa fa:
 - **`CREATE TABLE IF NOT EXISTS`** — crea la tabella solo se non esiste, così lo script può girare più volte senza errori
 - **`db.transaction()`** — raggruppa i 13 INSERT in una transazione atomica (~50x più veloce di INSERT singoli)
 - **`module.exports = db`** — esporta la connessione aperta, così tutti i `routes/*.js` usano **la stessa connessione**
-
-> ℹ️ **Nota per il deploy in produzione:** aggiungere un blocco migrazioni con `PRAGMA table_info()` + `ALTER TABLE` per aggiornare database esistenti senza perdere dati.
+- **Migrazioni automatiche** — al riavvio, `PRAGMA table_info()` verifica le colonne esistenti e aggiunge con `ALTER TABLE` quelle mancanti (`cognome` su `clienti`, `pagato` su `ordini`). I dati esistenti non vengono mai toccati.
 
 ---
 
@@ -513,7 +522,7 @@ Metodi: getAll, findById, cerca, salva, elimina
 **Concetti chiave:**
 
 - **`cerca()` lato client** — filtra in memoria con `Array.filter()`, zero chiamate HTTP aggiuntive
-- **Ricerca multicolonna** — cerca in nome, telefono ed email contemporaneamente
+- **Ricerca multicolonna** — cerca in nome, cognome, telefono ed email contemporaneamente
 
 ---
 
@@ -598,7 +607,9 @@ Gestisce esclusivamente:
 2. Event delegation per tutti i click delle card
 3. Submit dei 4 form (cliente, ordine, lavorazione, bici)
 4. Listener change su select cliente → aggiorna select bici
-5. Toast errori
+5. Toast errori (rosso) e toast conferma (verde)
+6. Filtro ordini persistente in sessionStorage
+7. Validazione client-side (nome/telefono obbligatori, almeno 1 lavorazione per ordine)
 ```
 
 **Concetti chiave:**
@@ -606,7 +617,8 @@ Gestisce esclusivamente:
 - **Event Delegation** — un solo listener su `document` gestisce: `edit-cliente`, `del-cliente`, `storico-cliente`, `bici-cliente`, `edit-bici`, `del-bici`, `edit-ordine`, `del-ordine`, `avanza-ordine`, `riapri-ordine`, `edit-lavorazione`, `del-lavorazione`
 - **`avanza-ordine`** — chiama `OrdiniService.avanza(id)` che calcola autonomamente il prossimo stato
 - **Riapertura storico** — dopo il submit ordine, controlla se `modal-storico` era aperto (via `dataset.clienteId`) e lo riapre invece di fare `refreshView()`
-- **Filtro ordini come `<select>`** — più compatto dei radio button, legge il valore con `getElementById('filter-ordini').value`
+- **Filtro ordini persistente** — il filtro selezionato viene salvato in `sessionStorage` e ripristinato al prossimo avvio dell'app
+- **Conferma eliminazione cliente** — mostra il numero di ordini e bici associate prima di procedere
 - **`currentView`** — traccia la view attiva per `refreshView()` dopo ogni operazione
 
 ---
@@ -754,7 +766,8 @@ Tutte le API accettano e restituiscono **JSON**.
 **Corpo POST/PUT:**
 ```json
 {
-  "nome":     "Mario Rossi",
+  "nome":     "Mario",
+  "cognome":  "Rossi",
   "telefono": "+39 333 1234567",
   "email":    "mario@example.com",
   "note":     "Cliente abituale"
@@ -867,6 +880,7 @@ File: `data/officina.db`
 CREATE TABLE IF NOT EXISTS clienti (
   id        TEXT PRIMARY KEY,
   nome      TEXT NOT NULL,
+  cognome   TEXT DEFAULT '',
   telefono  TEXT DEFAULT '',
   email     TEXT DEFAULT '',
   note      TEXT DEFAULT '',
@@ -904,6 +918,7 @@ CREATE TABLE IF NOT EXISTS ordini (
   note         TEXT DEFAULT '',
   voci         TEXT DEFAULT '[]',         -- array JSON serializzato
   totale       REAL DEFAULT 0,
+  pagato       INTEGER DEFAULT 0,          -- 0 = non pagato, 1 = pagato
   FOREIGN KEY (clienteId) REFERENCES clienti(id)
 );
 ```
@@ -970,7 +985,69 @@ Poi pianificalo con **Utilità di pianificazione** di Windows.
 
 ---
 
-## 13. Risoluzione problemi
+## 13. Procedura di aggiornamento senza perdita dati
+
+> Seguire questa procedura ogni volta che viene distribuita una nuova versione di CicloDesk su un'installazione già in uso.
+
+### Perché è sicuro aggiornare
+
+CicloDesk usa **migrazioni automatiche** all'avvio: `server/db.js` controlla con `PRAGMA table_info()` se le colonne nuove esistono già e, se mancano, le aggiunge con `ALTER TABLE`. I dati esistenti non vengono mai cancellati o modificati.
+
+### Passaggi
+
+**Passo 1 — Fai un backup preventivo** *(sempre, prima di qualsiasi aggiornamento)*
+
+```bash
+# Windows
+copy C:\ciclodesk\data\officina.db C:\Users\TuoNome\Documents\backup-pre-aggiornamento.db
+
+# Mac/Linux
+cp ~/ciclodesk/data/officina.db ~/Documents/backup-pre-aggiornamento.db
+```
+
+**Passo 2 — Ferma il server**
+
+Nella finestra del terminale premi **`Ctrl + C`**.
+
+**Passo 3 — Copia i nuovi file**
+
+Sostituisci tutti i file del progetto **tranne la cartella `data/`**:
+
+```
+✅ Sostituire:   server/   public/   package.json   start.bat   start.sh
+❌ NON toccare:  data/officina.db
+```
+
+**Passo 4 — Installa eventuali nuove dipendenze**
+
+```bash
+npm install
+```
+
+> Se `package.json` non è cambiato, questo comando è veloce e non cambia nulla.
+
+**Passo 5 — Riavvia il server**
+
+```bash
+npm start
+```
+
+Al riavvio, le migrazioni vengono eseguite automaticamente. In console non appare nulla se tutto è già aggiornato. La prima volta che viene aggiunta una colonna nuova si può abilitare un log opzionale nel codice.
+
+**Passo 6 — Verifica**
+
+Apri il browser, controlla che i dati esistenti siano intatti e che le nuove funzionalità siano disponibili.
+
+### Colonne aggiunte per versione
+
+| Versione | Tabella | Colonna | Tipo | Default |
+|---|---|---|---|---|
+| **1.4.0** | `clienti` | `cognome` | TEXT | `''` |
+| **1.4.0** | `ordini` | `pagato` | INTEGER | `0` |
+
+---
+
+## 14. Risoluzione problemi
 
 | Errore | Causa | Soluzione |
 |---|---|---|
@@ -1006,13 +1083,12 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-## 14. Aggiornamenti futuri consigliati
+## 15. Aggiornamenti futuri consigliati
 
 | Funzionalità | Priorità | Descrizione |
 |---|---|---|
 | **Login con password** | 🔴 Alta | Proteggere i dati da accessi non autorizzati |
 | **Stampa / PDF ordine** | 🔴 Alta | Ricevuta da consegnare al cliente |
-| **Migrazioni DB per produzione** | 🔴 Alta | Blocco `ALTER TABLE` per aggiornare DB esistenti senza perdere dati |
 | **Backup automatico su cloud** | 🟡 Media | Copia automatica su Google Drive o Dropbox |
 | **Notifiche pronto-ritiro** | 🟡 Media | SMS o WhatsApp tramite API Twilio |
 | **Statistiche mensili** | 🟢 Bassa | Grafici incassi e lavorazioni più frequenti |
@@ -1022,10 +1098,12 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-## 15. Note di versione
+## 16. Note di versione
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.5.0** | 2026-05-22 | **Qualità e UX:** toast verde di conferma dopo ogni salvataggio/eliminazione; ordinamento ordini per urgenza (aperti prima, poi per data); filtro ordini persistente tra sessioni (`sessionStorage`); conferma eliminazione cliente con conteggio ordini e bici; eliminazione lavorazione bloccata se usata in ordini attivi. **Dropdown custom** uniformi per clienti e lavorazioni (stesso stile su tutti i browser; ri-apertura dropdown su voce già selezionata). **Validazioni:** almeno una lavorazione obbligatoria per ordine; prezzo negativo rifiutato lato server. **Codice:** `server/utils.js` con `newId()` centralizzata; campo `bici` rimosso da clienti (era inutilizzato); data iscrizione cliente visibile nella scheda |
+| **1.4.0** | 2026-05-22 | **Scheda clienti:** aggiunto campo `cognome` (form, card, storico, modal bici). **Ordini:** aggiunto flag `pagato`. **Migrazioni automatiche** al riavvio per entrambe le colonne (`ALTER TABLE` solo se mancanti — dati esistenti intatti). Aggiunta sezione "Procedura di aggiornamento senza perdita dati" |
 | **1.3.0** | 2026-05-15 | **Scheda bici** arricchita: tipo bici con menu a tendina (Strada/MTB/E-MTB/E-Bike), ordine campi invertito marca→modello, seriale forcella e seriale ammortizzatore. **4 stati ordine** con avanzamento sequenziale: accettata → in_lavorazione → pronto → consegnata; `dataUscita` impostata automaticamente alla consegna. **Dashboard** senza incasso: 4 card (clienti, in officina, pronte al ritiro, consegnate oggi). Filtro ordini come menu a tendina. `db.js` ripulito (fase sviluppo, no migrazioni) |
 | **1.2.0** | 2026-05-15 | Gestione multi-bici per cliente: architettura semplificata con `clienteId` diretto sulla bici (rimossa tabella pivot). Select bici dinamico nel form ordine. Bici visibile in card ordini e storico. Fix z-index modali sovrapposti. Fix riapertura storico dopo salvataggio ordine |
 | **1.1.0** | 2026-05-14 | Storico interventi per cliente: modal con 5 statistiche, lista completa, ricerca live, modifica rapida. Header con logo Cerica Bikelab |
@@ -1033,4 +1111,4 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-*🚲 CicloDesk v1.3.0 — Gestionale per ciclo officina Cerica Bikelab*
+*🚲 CicloDesk v1.5.0 — Gestionale per ciclo officina Cerica Bikelab*

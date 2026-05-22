@@ -15,6 +15,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS clienti (
     id        TEXT PRIMARY KEY,
     nome      TEXT NOT NULL,
+    cognome   TEXT DEFAULT '',
     telefono  TEXT DEFAULT '',
     email     TEXT DEFAULT '',
     note      TEXT DEFAULT '',
@@ -52,9 +53,21 @@ db.exec(`
     note         TEXT DEFAULT '',
     voci         TEXT DEFAULT '[]',
     totale       REAL DEFAULT 0,
+    pagato       INTEGER DEFAULT 0,
     FOREIGN KEY (clienteId) REFERENCES clienti(id)
   );
 `);
+
+// ── Migrazioni (colonne aggiunte dopo il deploy iniziale) ────────
+const colonneClienti = db.prepare('PRAGMA table_info(clienti)').all().map(r => r.name);
+if (!colonneClienti.includes('cognome')) {
+  db.exec("ALTER TABLE clienti ADD COLUMN cognome TEXT DEFAULT ''");
+}
+
+const colonneOrdini = db.prepare('PRAGMA table_info(ordini)').all().map(r => r.name);
+if (!colonneOrdini.includes('pagato')) {
+  db.exec('ALTER TABLE ordini ADD COLUMN pagato INTEGER DEFAULT 0');
+}
 
 // ── Seed lavorazioni default (solo se tabella vuota) ───────────
 const { n } = db.prepare('SELECT COUNT(*) as n FROM lavorazioni').get();
@@ -80,3 +93,4 @@ if (n === 0) {
 }
 
 module.exports = db;
+

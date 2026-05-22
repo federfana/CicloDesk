@@ -1,21 +1,29 @@
-const express = require('express');
-const router  = express.Router();
-const db      = require('../db');
+const express     = require('express');
+const router      = express.Router();
+const db          = require('../db');
+const { newId }   = require('../utils');
 
 const STATI_VALIDI = ['accettata', 'in_lavorazione', 'pronto', 'consegnata'];
 
-function newId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
 function parse(row) {
   if (!row) return null;
-  return { ...row, voci: JSON.parse(row.voci || '[]') };
+  return { ...row, voci: JSON.parse(row.voci || '[]'), pagato: Boolean(row.pagato) };
 }
 
 // GET /api/ordini
 router.get('/', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM ordini ORDER BY dataIngresso DESC').all();
+  const rows = db.prepare(`
+    SELECT * FROM ordini
+    ORDER BY
+      CASE stato
+        WHEN 'accettata'      THEN 0
+        WHEN 'in_lavorazione' THEN 1
+        WHEN 'pronto'         THEN 2
+        WHEN 'consegnata'     THEN 3
+        ELSE 4
+      END ASC,
+      dataIngresso DESC
+  `).all();
   res.json(rows.map(parse));
 });
 
@@ -33,20 +41,22 @@ router.post('/', (req, res) => {
     stato = 'accettata',
     dataIngresso, dataUscita = null,
     note = '', voci = [], totale = 0,
+    pagato = false,
   } = req.body;
 
   if (!clienteId) return res.status(400).json({ error: 'clienteId obbligatorio' });
 
-  const statoFinal = STATI_VALIDI.includes(stato) ? stato : 'accettata';
+  const statoFinal  = STATI_VALIDI.includes(stato) ? stato : 'accettata';
+  const pagatoFinal = pagato ? 1 : 0;
   const id = newId();
 
   db.prepare(`
-    INSERT INTO ordini (id, clienteId, biciId, stato, dataIngresso, dataUscita, note, voci, totale)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO ordini (id, clienteId, biciId, stato, dataIngresso, dataUscita, note, voci, totale, pagato)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, clienteId, biciId || null, statoFinal,
     dataIngresso || new Date().toISOString(),
-    dataUscita, note.trim(), JSON.stringify(voci), totale
+    dataUscita, note.trim(), JSON.stringify(voci), totale, pagatoFinal
   );
 
   res.status(201).json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
@@ -67,9 +77,11 @@ router.put('/:id', (req, res) => {
     note         = existing.note,
     voci         = JSON.parse(existing.voci || '[]'),
     totale       = existing.totale,
+    pagato       = existing.pagato,
   } = req.body;
 
-  const statoFinal = STATI_VALIDI.includes(stato) ? stato : existing.stato;
+  const statoFinal  = STATI_VALIDI.includes(stato) ? stato : existing.stato;
+  const pagatoFinal = pagato ? 1 : 0;
   // Imposta dataUscita solo quando si consegna
   const dataUscitaFinal = statoFinal === 'consegnata'
     ? (dataUscita || new Date().toISOString())
@@ -77,12 +89,12 @@ router.put('/:id', (req, res) => {
 
   db.prepare(`
     UPDATE ordini
-    SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?
+    SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?, pagato=?
     WHERE id=?
   `).run(
     clienteId, biciId || null, statoFinal,
     dataIngresso, dataUscitaFinal,
-    note, JSON.stringify(voci), totale, id
+    note, JSON.stringify(voci), totale, pagatoFinal, id
   );
 
   res.json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));

@@ -13,19 +13,19 @@ const ClientiService = (() => {
     if (!query.trim()) return all;
     const q = query.toLowerCase().trim();
     return all.filter(c =>
-      c.nome.toLowerCase().includes(q)             ||
-      (c.telefono || '').includes(q)               ||
-      (c.email    || '').toLowerCase().includes(q) ||
-      (c.bici     || '').toLowerCase().includes(q)
+      c.nome.toLowerCase().includes(q)                    ||
+      (c.cognome  || '').toLowerCase().includes(q)        ||
+      (c.telefono || '').includes(q)                      ||
+      (c.email    || '').toLowerCase().includes(q)
     );
   }
 
   async function salva(data) {
     const record = {
       nome:     data.nome.trim(),
+      cognome:  (data.cognome  || '').trim(),
       telefono: (data.telefono || '').trim(),
       email:    (data.email    || '').trim(),
-      bici:     (data.bici     || '').trim(),
       note:     (data.note     || '').trim(),
     };
     if (data.id) return DB.update('clienti', data.id, { id: data.id, ...record });

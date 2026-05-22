@@ -1,10 +1,7 @@
-const express = require('express');
-const router  = express.Router();
-const db      = require('../db');
-
-function newId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
+const express     = require('express');
+const router      = express.Router();
+const db          = require('../db');
+const { newId }   = require('../utils');
 
 // GET /api/bici?clienteId=xxx
 router.get('/', (req, res) => {

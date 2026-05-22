@@ -1,10 +1,7 @@
-const express = require('express');
-const router  = express.Router();
-const db      = require('../db');
-
-function newId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
+const express     = require('express');
+const router      = express.Router();
+const db          = require('../db');
+const { newId }   = require('../utils');
 
 // GET /api/clienti
 router.get('/', (_req, res) => {
@@ -21,18 +18,18 @@ router.get('/:id', (req, res) => {
 
 // POST /api/clienti
 router.post('/', (req, res) => {
-  const { nome, telefono = '', email = '', note = '' } = req.body;
+  const { nome, cognome = '', telefono = '', email = '', note = '' } = req.body;
   if (!nome?.trim()) return res.status(400).json({ error: 'Nome obbligatorio' });
 
   const id        = newId();
   const createdAt = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO clienti (id, nome, telefono, email, note, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, nome.trim(), telefono.trim(), email.trim(), note.trim(), createdAt);
+    INSERT INTO clienti (id, nome, cognome, telefono, email, note, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, nome.trim(), cognome.trim(), telefono.trim(), email.trim(), note.trim(), createdAt);
 
-  res.status(201).json({ id, nome: nome.trim(), telefono, email, note, createdAt });
+  res.status(201).json({ id, nome: nome.trim(), cognome: cognome.trim(), telefono, email, note, createdAt });
 });
 
 // PUT /api/clienti/:id
@@ -41,13 +38,13 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM clienti WHERE id = ?').get(id);
   if (!existing) return res.status(404).json({ error: 'Cliente non trovato' });
 
-  const { nome, telefono = '', email = '', note = '' } = req.body;
+  const { nome, cognome = '', telefono = '', email = '', note = '' } = req.body;
 
   db.prepare(`
-    UPDATE clienti SET nome=?, telefono=?, email=?, note=? WHERE id=?
-  `).run(nome?.trim() || existing.nome, telefono.trim(), email.trim(), note.trim(), id);
+    UPDATE clienti SET nome=?, cognome=?, telefono=?, email=?, note=? WHERE id=?
+  `).run(nome?.trim() || existing.nome, cognome.trim(), telefono.trim(), email.trim(), note.trim(), id);
 
-  res.json({ ...existing, nome, telefono, email, note });
+  res.json({ ...existing, nome, cognome, telefono, email, note });
 });
 
 // DELETE /api/clienti/:id

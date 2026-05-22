@@ -14,6 +14,19 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => t.remove(), 4000);
   }
 
+  function showSuccess(msg) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    Object.assign(t.style, {
+      position: 'fixed', bottom: '1.5rem', right: '1.5rem',
+      background: '#16a34a', color: '#fff', padding: '.75rem 1.2rem',
+      borderRadius: '8px', fontSize: '.9rem', zIndex: 9999,
+      boxShadow: '0 4px 12px rgba(0,0,0,.3)',
+    });
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
   // ── Navigazione view ──────────────────────────────────────────
   let currentView = 'dashboard';
 
@@ -55,9 +68,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('search-ordini').addEventListener('input', () =>
     UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery()).catch(showError)
   );
-  document.getElementById('filter-ordini').addEventListener('change', () =>
-    UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery()).catch(showError)
-  );
+  document.getElementById('filter-ordini').addEventListener('change', () => {
+    sessionStorage.setItem('ciclo-ordini-filtro', getOrdiniFilter());
+    UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery()).catch(showError);
+  });
   document.getElementById('search-storico').addEventListener('input', e =>
     UI.filtraStorico(e.target.value)
   );
@@ -83,11 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) { showError(e.message); }
   });
 
-  document.getElementById('btn-aggiungi-voce').addEventListener('click', async () => {
-    try {
-      const lavorazioni = await LavorazioniService.getAll();
-      UI.aggiungiRigaVoce({}, lavorazioni);
-    } catch (e) { showError(e.message); }
+  document.getElementById('btn-aggiungi-voce').addEventListener('click', () => {
+    UI.aggiungiRigaVoce({});
   });
 
   document.getElementById('btn-nuova-lavorazione').addEventListener('click', () =>
@@ -111,12 +122,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // ── Clienti
         case 'edit-cliente':
           await UI.apriModalCliente(id); break;
-        case 'del-cliente':
-          if (confirm('Eliminare il cliente e tutti i suoi ordini?')) {
+        case 'del-cliente': {
+          const [ordiniCliente, biciCliente] = await Promise.all([
+            OrdiniService.getByCliente(id),
+            BiciService.getByCliente(id),
+          ]);
+          const parti = [];
+          if (ordiniCliente.length) parti.push(`${ordiniCliente.length} ordin${ordiniCliente.length === 1 ? 'e' : 'i'}`);
+          if (biciCliente.length)  parti.push(`${biciCliente.length} bici`);
+          const dettaglio = parti.length ? ` con ${parti.join(' e ')}` : '';
+          if (confirm(`Eliminare il cliente${dettaglio}? L'operazione è irreversibile.`)) {
             await ClientiService.elimina(id);
             await refreshView(currentView);
+            showSuccess('✅ Cliente eliminato');
           }
           break;
+        }
         case 'nuovo-ordine-cliente':
           await showView('ordini');
           await UI.apriModalOrdine(null, id);
@@ -140,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const clienteId = document.getElementById('bici-cliente-id-hidden').value;
             const bici      = await BiciService.getByCliente(clienteId);
             UI.renderBiciList(bici);
+            showSuccess('✅ Bici eliminata');
           }
           break;
 
@@ -150,7 +172,12 @@ document.addEventListener('DOMContentLoaded', () => {
           if (confirm('Eliminare questo ordine?')) {
             await OrdiniService.elimina(id);
             await refreshView(currentView);
+            showSuccess('✅ Ordine eliminato');
           }
+          break;
+        case 'toggle-pagato':
+          await OrdiniService.togglePagato(id);
+          await refreshView(currentView);
           break;
         case 'avanza-ordine':
           await OrdiniService.avanza(id);
@@ -165,9 +192,10 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'edit-lavorazione':
           await UI.apriModalLavorazione(id); break;
         case 'del-lavorazione':
-          if (confirm('Eliminare questa lavorazione?')) {
+          if (confirm('Eliminare questa lavorazione dal catalogo?')) {
             await LavorazioniService.elimina(id);
             await UI.renderCatalogo();
+            showSuccess('✅ Lavorazione eliminata');
           }
           break;
       }
@@ -184,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('form-cliente').addEventListener('submit', async e => {
     e.preventDefault();
     const nome = document.getElementById('cliente-nome').value.trim();
+    const cognome = document.getElementById('cliente-cognome').value.trim();
     const tel  = document.getElementById('cliente-telefono').value.trim();
     if (!nome) return alert('Il nome è obbligatorio.');
     if (!tel)  return alert('Il telefono è obbligatorio.');
@@ -191,11 +220,13 @@ document.addEventListener('DOMContentLoaded', () => {
       await ClientiService.salva({
         id:       document.getElementById('cliente-id').value || null,
         nome,
+        cognome,
         telefono: tel,
         email:    document.getElementById('cliente-email').value,
         note:     document.getElementById('cliente-note').value,
       });
       UI.closeAllModals();
+      showSuccess('✅ Cliente salvato');
       await refreshView(currentView);
     } catch (e) { showError(e.message); }
   });
@@ -206,7 +237,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clienteId = document.getElementById('ordine-cliente-id').value;
     if (!clienteId) return alert('Seleziona un cliente.');
     try {
-      const voci      = UI.raccogliVoci();
+      const voci = UI.raccogliVoci();
+      if (!voci.length) return alert('Aggiungi almeno una lavorazione all’ordine.');
       const ordineId  = document.getElementById('ordine-id').value || null;
       const esistente = ordineId ? await OrdiniService.findById(ordineId) : null;
 
@@ -220,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                       : new Date().toISOString(),
         dataUscita:   esistente?.dataUscita || null,
         note:         document.getElementById('ordine-note').value,
+        pagato:       document.getElementById('ordine-pagato').checked,
       }, voci);
 
       const storicoModal     = document.getElementById('modal-storico');
@@ -233,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         await refreshView(currentView);
       }
+      showSuccess('✅ Ordine salvato');
     } catch (e) { showError(e.message); }
   });
 
@@ -250,6 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       UI.closeAllModals();
       await UI.renderCatalogo();
+      showSuccess('✅ Lavorazione salvata');
     } catch (e) { showError(e.message); }
   });
 
@@ -273,9 +308,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       UI.closeAllModals();
       await UI.apriModalBiciCliente(clienteId);
+      showSuccess('✅ Bici salvata');
     } catch (e) { showError(e.message); }
   });
 
   // ── Render iniziale ───────────────────────────────────────────
+  // Ripristina filtro ordini dalla sessione precedente
+  const savedFilter = sessionStorage.getItem('ciclo-ordini-filtro') || 'tutti';
+  document.getElementById('filter-ordini').value = savedFilter;
+
   showView('dashboard');
 });

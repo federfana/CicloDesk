@@ -104,7 +104,10 @@
         <input type="hidden" id="cliente-id" />
         <div class="form-grid">
           <label>Nome *
-            <input type="text" id="cliente-nome" required placeholder="Mario Rossi" />
+            <input type="text" id="cliente-nome" required placeholder="Mario" />
+          </label>
+          <label>Cognome
+            <input type="text" id="cliente-cognome" placeholder="Rossi" />
           </label>
           <label>Telefono *
             <input type="tel" id="cliente-telefono" required placeholder="+39 333 1234567" />
@@ -132,10 +135,11 @@
         <input type="hidden" id="ordine-id" />
         <div class="form-grid">
           <label>Cliente *
-            <select id="ordine-cliente-id" required>
-              <option value="">— Seleziona cliente —</option>
-            </select>
+            <input type="text" id="ordine-cliente-input" placeholder="🔍 Cerca o seleziona cliente" autocomplete="off" />
+            <input type="hidden" id="ordine-cliente-id" />
           </label>
+
+          <datalist id="lavorazioni-list"></datalist>
           <label>Data Ingresso
             <input type="datetime-local" id="ordine-data-ingresso" />
           </label>
@@ -171,6 +175,10 @@
             </tr>
           </tfoot>
         </table>
+        <label class="full-width checkbox-label">
+          <input type="checkbox" id="ordine-pagato" />
+          <span>Pagato</span>
+        </label>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary modal-close">Annulla</button>
           <button type="submit" class="btn btn-primary">Salva Ordine</button>

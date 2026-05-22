@@ -13,6 +13,11 @@ const UI = (() => {
     });
   }
 
+  function fmtDay(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
   function emptyState(msg) {
     return `<p class="empty-state">${msg}</p>`;
   }
@@ -53,6 +58,9 @@ const UI = (() => {
     const t = TIPO_CFG[tipo] || TIPO_CFG.strada;
     return `<span class="${t.cls}">${t.label}</span>`;
   }
+
+  // Mappa lavorazioni per datalist: display -> {id, prezzo, nome}
+  let _lavorazioniMap = {};
 
   // ── Dashboard ─────────────────────────────────────────────────
   async function renderDashboard() {
@@ -125,7 +133,7 @@ const UI = (() => {
       return `
         <div class="card">
           <div class="card-row">
-            <span class="card-title">👤 ${c.nome}</span>
+            <span class="card-title">👤 ${c.nome}${c.cognome ? ' ' + c.cognome : ''}</span>
             <div class="card-actions">
               <button class="btn btn-sm btn-secondary" data-action="storico-cliente"      data-id="${c.id}">📋 Storico</button>
               <button class="btn btn-sm btn-secondary" data-action="bici-cliente"         data-id="${c.id}">🚲 Bici</button>
@@ -141,6 +149,7 @@ const UI = (() => {
           <span class="card-sub">
             ${ordini.length} interventi &nbsp;|&nbsp; Speso: ${fmt(totaleSpeso)}
             ${attivi > 0 ? `&nbsp;<span class="card-badge badge-in-lavorazione">${attivi} in corso</span>` : ''}
+            ${c.createdAt ? `&nbsp;|&nbsp; cliente dal ${fmtDay(c.createdAt)}` : ''}
           </span>
         </div>`;
     }).join('');
@@ -196,11 +205,15 @@ const UI = (() => {
             ${o.dataUscita ? '&nbsp;|&nbsp; Uscita: ' + fmtDate(o.dataUscita) : ''}
           </span>
           ${o.note ? `<span class="card-sub">📝 ${o.note}</span>` : ''}
+          <span class="card-sub">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}</span>
           <div>${vociHtml || '<span class="card-sub">Nessuna lavorazione</span>'}</div>
           <div class="card-row">
             <strong>${fmt(o.totale)}</strong>
             <div class="card-actions">
               ${btnAvanza(o)}
+              ${o.pagato
+                ? `<button class="btn btn-sm btn-secondary" data-action="toggle-pagato" data-id="${o.id}">Annulla pagato</button>`
+                : `<button class="btn btn-sm btn-primary" data-action="toggle-pagato" data-id="${o.id}">Segna pagato</button>`}
               ${o.stato === 'consegnata'
                 ? `<button class="btn btn-sm btn-secondary" data-action="riapri-ordine" data-id="${o.id}">↩ Riapri</button>`
                 : ''}
@@ -254,7 +267,7 @@ const UI = (() => {
     );
     _storicoClienteId = clienteId;
 
-    document.getElementById('storico-cliente-nome').textContent = cliente.nome;
+    document.getElementById('storico-cliente-nome').textContent = [cliente.nome, cliente.cognome].filter(Boolean).join(' ');
     document.getElementById('storico-cliente-info').textContent =
       [cliente.telefono, cliente.email].filter(Boolean).join('  ·  ');
 
@@ -303,6 +316,7 @@ const UI = (() => {
             </div>
           </div>
           ${o.note ? `<p class="card-sub" style="margin-bottom:.3rem">📝 ${o.note}</p>` : ''}
+          <p class="card-sub" style="margin-bottom:.3rem">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}</p>
           <div class="storico-voci">
             ${vociHtml || '<span class="card-sub">Nessuna lavorazione registrata</span>'}
           </div>
@@ -331,7 +345,7 @@ const UI = (() => {
       ClientiService.findById(clienteId),
       BiciService.getByCliente(clienteId),
     ]);
-    document.getElementById('bici-cliente-nome').textContent = cliente.nome;
+    document.getElementById('bici-cliente-nome').textContent = [cliente.nome, cliente.cognome].filter(Boolean).join(' ');
     document.getElementById('bici-cliente-id-hidden').value  = clienteId;
     renderBiciList(bici);
     openModal('modal-bici-cliente');
@@ -406,56 +420,171 @@ const UI = (() => {
     document.getElementById('modal-ordine-title').textContent = ordine ? 'Modifica Ordine' : 'Nuovo Ordine';
     document.getElementById('ordine-id').value   = ordine?.id   || '';
     document.getElementById('ordine-note').value = ordine?.note || '';
+    document.getElementById('ordine-pagato').checked = Boolean(ordine?.pagato);
 
     const dtInput = document.getElementById('ordine-data-ingresso');
     dtInput.value = toDatetimeLocal(ordine?.dataIngresso || new Date().toISOString());
 
-    const selCliente = document.getElementById('ordine-cliente-id');
-    selCliente.innerHTML = '<option value="">— Seleziona cliente —</option>';
-    clienti.forEach(c => {
-      const opt       = document.createElement('option');
-      opt.value       = c.id;
-      opt.textContent = c.nome;
-      if (ordine?.clienteId === c.id || preselezionaClienteId === c.id) opt.selected = true;
-      selCliente.appendChild(opt);
+    const inputCliente = document.getElementById('ordine-cliente-input');
+    const hiddenCliente = document.getElementById('ordine-cliente-id');
+    inputCliente.value = '';
+    hiddenCliente.value = '';
+    const displayMap = {};
+    function displayFor(c) {
+      const nome = [c.nome, c.cognome].filter(Boolean).join(' ');
+      return `${nome}${c.telefono ? ' — ' + c.telefono : ''}${c.email ? ' • ' + c.email : ''}`;
+    }
+
+    const clientiItems = clienti.map(c => {
+      const disp = displayFor(c);
+      displayMap[disp] = c.id;
+      return { id: c.id, display: disp };
     });
 
-    const clienteIdAttivo = ordine?.clienteId || preselezionaClienteId || null;
+    const existingSuggestion = document.getElementById('ordine-clienti-suggestions');
+    if (existingSuggestion) existingSuggestion.remove();
+    const suggestions = document.createElement('div');
+    suggestions.id = 'ordine-clienti-suggestions';
+    suggestions.className = 'clienti-suggestions hidden';
+    inputCliente.parentElement.style.position = 'relative';
+    inputCliente.insertAdjacentElement('afterend', suggestions);
+
+    function renderClientSuggestions(query = '') {
+      const q = query.toLowerCase().trim();
+      const matches = clientiItems
+        .filter(item => !q || item.display.toLowerCase().includes(q))
+        .slice(0, 8);
+      suggestions.innerHTML = matches.map(item =>
+        `<div class="clienti-suggestion" data-id="${item.id}" data-value="${item.display}">${item.display}</div>`
+      ).join('');
+      suggestions.classList.toggle('hidden', matches.length === 0);
+    }
+
+    function selectCliente(display, id) {
+      inputCliente.value = display;
+      hiddenCliente.value = id || '';
+      suggestions.classList.add('hidden');
+      aggiornaBiciSelect(hiddenCliente.value || null, ordine?.biciId || null);
+    }
+
+    // Preseleziona cliente se necessario
+    if (ordine?.clienteId) {
+      const c = clienti.find(x => x.id === ordine.clienteId);
+      if (c) selectCliente(displayFor(c), c.id);
+    } else if (preselezionaClienteId) {
+      const c = clienti.find(x => x.id === preselezionaClienteId);
+      if (c) selectCliente(displayFor(c), c.id);
+    }
+
+    inputCliente.oninput = function () {
+      const val = this.value;
+      hiddenCliente.value = displayMap[val] || '';
+      if (!val.trim()) hiddenCliente.value = '';
+      renderClientSuggestions(val);
+      aggiornaBiciSelect(hiddenCliente.value || null, ordine?.biciId || null);
+    };
+
+    inputCliente.addEventListener('focus', () => {
+      renderClientSuggestions('');
+    });
+
+    suggestions.addEventListener('mousedown', (ev) => {
+      const item = ev.target.closest('.clienti-suggestion');
+      if (!item) return;
+      selectCliente(item.dataset.value, item.dataset.id);
+      ev.preventDefault();
+    });
+
+    inputCliente.addEventListener('blur', () => {
+      setTimeout(() => suggestions.classList.add('hidden'), 150);
+    });
+
+    const clienteIdAttivo = hiddenCliente.value || preselezionaClienteId || ordine?.clienteId || null;
     await aggiornaBiciSelect(clienteIdAttivo, ordine?.biciId || null);
 
+    // Costruisce mappa lavorazioni per il dropdown custom
+    _lavorazioniMap = {};
+    lavorazioni.forEach(l => {
+      const disp = `${l.nome}${l.prezzo ? ' — \u20ac\u00a0' + l.prezzo.toFixed(2) : ''}`;
+      _lavorazioniMap[disp] = { id: l.id, prezzo: l.prezzo, nome: l.nome, display: disp };
+      _lavorazioniMap[l.id] = _lavorazioniMap[disp];
+    });
+
     document.getElementById('tbody-voci').innerHTML = '';
-    (ordine?.voci || []).forEach(v => aggiungiRigaVoce(v, lavorazioni));
+    (ordine?.voci || []).forEach(v => aggiungiRigaVoce(v));
     aggiornaLocale();
     openModal('modal-ordine');
   }
 
-  function aggiungiRigaVoce(voce = {}, lavorazioni = []) {
-    const tbody   = document.getElementById('tbody-voci');
-    const tr      = document.createElement('tr');
-    const opzioni = lavorazioni.map(l =>
-      `<option value="${l.id}" data-prezzo="${l.prezzo}"
-        ${voce.lavorazioneId === l.id ? 'selected' : ''}>${l.nome}</option>`
-    ).join('');
-
+  function aggiungiRigaVoce(voce = {}) {
+    const tbody = document.getElementById('tbody-voci');
+    const tr    = document.createElement('tr');
     tr.innerHTML = `
-      <td>
-        <select class="sel-lavorazione">
-          <option value="">— Scegli —</option>
-          ${opzioni}
-        </select>
+      <td style="position:relative">
+        <input type="text" class="inp-lavorazione" autocomplete="off" placeholder="— Scegli —" value="${voce.nome || ''}" />
+        <input type="hidden" class="hid-lavorazione-id" value="${voce.lavorazioneId || ''}" />
+        <div class="lav-suggestions hidden"></div>
       </td>
       <td><input type="text"   class="inp-note-voce"   placeholder="Note…" value="${voce.note   || ''}" /></td>
       <td><input type="number" class="inp-prezzo-voce" step="0.01" min="0"  value="${voce.prezzo || 0}" style="width:90px" /></td>
       <td><button type="button" class="btn btn-sm btn-danger btn-rimuovi-voce">✕</button></td>
     `;
 
-    tr.querySelector('.sel-lavorazione').addEventListener('change', function () {
-      const opt = this.options[this.selectedIndex];
-      if (opt.dataset.prezzo !== undefined) {
-        tr.querySelector('.inp-prezzo-voce').value = parseFloat(opt.dataset.prezzo).toFixed(2);
-      }
+    const inpLav = tr.querySelector('.inp-lavorazione');
+    const hidLav = tr.querySelector('.hid-lavorazione-id');
+    const priceI = tr.querySelector('.inp-prezzo-voce');
+    const sugDiv = tr.querySelector('.lav-suggestions');
+
+    // Lista unica ordinata per nome
+    const lavList = Object.entries(_lavorazioniMap)
+      .filter(([k, v]) => k === v.display)
+      .map(([, v]) => v)
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+
+    function renderLavSuggestions(query = '') {
+      const q = query.toLowerCase().trim();
+      const matches = lavList
+        .filter(item => !q || item.nome.toLowerCase().includes(q))
+        .slice(0, 10);
+      sugDiv.innerHTML = matches
+        .map(item => `<div class="lav-suggestion" data-id="${item.id}" data-value="${item.display}" data-price="${item.prezzo}">${item.display}</div>`)
+        .join('');
+      sugDiv.classList.toggle('hidden', matches.length === 0);
+    }
+
+    function selectLavorazione(display, id, price) {
+      inpLav.value = display;
+      hidLav.value = id;
+      priceI.value = parseFloat(price || 0).toFixed(2);
+      sugDiv.classList.add('hidden');
+      aggiornaLocale();
+    }
+
+    // Pre-fill se voce esistente
+    if (hidLav.value && _lavorazioniMap[hidLav.value]) {
+      const m = _lavorazioniMap[hidLav.value];
+      inpLav.value = m.display || m.nome;
+      priceI.value = (m.prezzo || 0).toFixed(2);
+    }
+
+    inpLav.addEventListener('focus', () => renderLavSuggestions(''));
+    inpLav.addEventListener('input', function () {
+      renderLavSuggestions(this.value);
+      const m = _lavorazioniMap[this.value];
+      hidLav.value = m?.id || '';
+      if (m) priceI.value = (m.prezzo || 0).toFixed(2);
       aggiornaLocale();
     });
+    inpLav.addEventListener('blur', () => {
+      setTimeout(() => sugDiv.classList.add('hidden'), 150);
+    });
+    sugDiv.addEventListener('mousedown', ev => {
+      const item = ev.target.closest('.lav-suggestion');
+      if (!item) return;
+      selectLavorazione(item.dataset.value, item.dataset.id, item.dataset.price);
+      ev.preventDefault();
+    });
+
     tr.querySelector('.inp-prezzo-voce').addEventListener('input', aggiornaLocale);
     tr.querySelector('.btn-rimuovi-voce').addEventListener('click', () => {
       tr.remove();
@@ -474,14 +603,14 @@ const UI = (() => {
   function raccogliVoci() {
     const voci = [];
     document.querySelectorAll('#tbody-voci tr').forEach(tr => {
-      const sel   = tr.querySelector('.sel-lavorazione');
-      const lavId = sel.value;
+      const hid   = tr.querySelector('.hid-lavorazione-id');
+      const lavId = hid ? hid.value : '';
       if (!lavId) return;
       voci.push({
         lavorazioneId: lavId,
-        nome:          sel.options[sel.selectedIndex]?.text || '',
-        note:          tr.querySelector('.inp-note-voce').value,
-        prezzo:        parseFloat(tr.querySelector('.inp-prezzo-voce').value) || 0,
+        nome:          tr.querySelector('.inp-lavorazione')?.value  || '',
+        note:          tr.querySelector('.inp-note-voce')?.value    || '',
+        prezzo:        parseFloat(tr.querySelector('.inp-prezzo-voce')?.value) || 0,
       });
     });
     return voci;
@@ -493,6 +622,7 @@ const UI = (() => {
     document.getElementById('modal-cliente-title').textContent = c ? 'Modifica Cliente' : 'Nuovo Cliente';
     document.getElementById('cliente-id').value       = c?.id       || '';
     document.getElementById('cliente-nome').value     = c?.nome     || '';
+    document.getElementById('cliente-cognome').value   = c?.cognome  || '';
     document.getElementById('cliente-telefono').value = c?.telefono || '';
     document.getElementById('cliente-email').value    = c?.email    || '';
     document.getElementById('cliente-note').value     = c?.note     || '';

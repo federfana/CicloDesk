@@ -49,6 +49,7 @@ const OrdiniService = (() => {
         prezzo:        parseFloat(v.prezzo) || 0,
       })),
       totale,
+      pagato: Boolean(data.pagato),
     };
     if (data.id) return DB.update('ordini', data.id, { id: data.id, ...record });
     return DB.create('ordini', record);
@@ -74,6 +75,12 @@ const OrdiniService = (() => {
     return DB.update('ordini', id, { ...o, stato: 'in_lavorazione', dataUscita: null });
   }
 
+  async function togglePagato(id) {
+    const o = await findById(id);
+    if (!o) return null;
+    return DB.update('ordini', id, { ...o, pagato: !o.pagato });
+  }
+
   async function elimina(id) {
     return DB.remove('ordini', id);
   }
@@ -85,6 +92,6 @@ const OrdiniService = (() => {
   return {
     STATI,
     getAll, findById, getByCliente, getAperti, getChiusiOggi,
-    salva, avanza, riapri, elimina, calcolaIncasso,
+    salva, avanza, riapri, togglePagato, elimina, calcolaIncasso,
   };
 })();
