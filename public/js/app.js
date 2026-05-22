@@ -166,6 +166,8 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
 
         // ── Ordini
+        case 'print-ordine':
+          await UI.printOrdine(id); break;
         case 'edit-ordine':
           await UI.apriModalOrdine(id); break;
         case 'del-ordine':

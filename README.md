@@ -295,6 +295,7 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 - **Ordini attivi mostrati prima** (accettati → in lavorazione → pronti), poi consegnati per data
 - Obbligatorio aggiungere almeno una lavorazione prima di salvare
 - Toast di conferma verde dopo ogni salvataggio
+- Pulsante **🖨️ Stampa** su ogni ordine: apre una finestra di stampa con ricevuta formattata (cliente, bici, lavorazioni, totale, stato pagamento). Compatibile con "Salva come PDF" del browser.
 
 ### Catalogo Lavorazioni
 - Gestione del listino prezzi dell'officina
@@ -1088,9 +1089,9 @@ const PORT = process.env.PORT || 3001;
 | Funzionalità | Priorità | Descrizione |
 |---|---|---|
 | **Login con password** | 🔴 Alta | Proteggere i dati da accessi non autorizzati |
-| **Stampa / PDF ordine** | 🔴 Alta | Ricevuta da consegnare al cliente |
+| **Stampa / PDF ordine** | 🔴 Alta | ✅ Implementato in v1.6.0 — pulsante 🖨️ su ogni ordine |
 | **Backup automatico su cloud** | 🟡 Media | Copia automatica su Google Drive o Dropbox |
-| **Notifiche pronto-ritiro** | 🟡 Media | SMS o WhatsApp tramite API Twilio |
+| **Notifiche pronto-ritiro** | 🟡 Media | Pulsante “Notifica WhatsApp” (gratuito, link `wa.me`) o SMS/email via API Twilio/nodemailer |
 | **Statistiche mensili** | 🟢 Bassa | Grafici incassi e lavorazioni più frequenti |
 | **Numero telaio bici** | 🟢 Bassa | Campo seriale telaio aggiuntivo nella scheda bici |
 | **Gestione magazzino ricambi** | 🟢 Bassa | Scorte camere d'aria, catene, pastiglie |
@@ -1102,7 +1103,7 @@ const PORT = process.env.PORT || 3001;
 
 | Versione | Data | Modifiche |
 |---|---|---|
-| **1.6.0** | 2026-05-22 | **Aggiornamenti tecnici:** Node.js v22 LTS come versione consigliata (v20 EOL); `better-sqlite3` aggiornato a v12.10.0 (supporto nativo Node.js v22, binari precompilati). **Fix:** doppia bici nel dropdown modifica ordine (race condition tra due chiamate concorrenti ad `aggiornaBiciSelect`). **UX:** clienti ordinati per cognome → nome (stile rubrica) |
+| **1.6.0** | 2026-05-22 | **Aggiornamenti tecnici:** Node.js v22 LTS come versione consigliata (v20 EOL); `better-sqlite3` aggiornato a v12.10.0 (supporto nativo Node.js v22, binari precompilati). **Stampa ordine:** pulsante 🖨️ su ogni card ordine — apre finestra di stampa con ricevuta formattata (cliente, bici, lavorazioni, totale, pagamento); compatibile con "Salva come PDF" del browser. **Fix:** doppia bici nel dropdown modifica ordine (race condition tra due chiamate concorrenti ad `aggiornaBiciSelect`). **UX:** clienti ordinati per cognome → nome (stile rubrica) |
 | **1.5.0** | 2026-05-22 | **Qualità e UX:** toast verde di conferma dopo ogni salvataggio/eliminazione; ordinamento ordini per urgenza (aperti prima, poi per data); filtro ordini persistente tra sessioni (`sessionStorage`); conferma eliminazione cliente con conteggio ordini e bici; eliminazione lavorazione bloccata se usata in ordini attivi. **Dropdown custom** uniformi per clienti e lavorazioni (stesso stile su tutti i browser; ri-apertura dropdown su voce già selezionata). **Validazioni:** almeno una lavorazione obbligatoria per ordine; prezzo negativo rifiutato lato server. **Codice:** `server/utils.js` con `newId()` centralizzata; campo `bici` rimosso da clienti (era inutilizzato); data iscrizione cliente visibile nella scheda |
 | **1.4.0** | 2026-05-22 | **Scheda clienti:** aggiunto campo `cognome` (form, card, storico, modal bici). **Ordini:** aggiunto flag `pagato`. **Migrazioni automatiche** al riavvio per entrambe le colonne (`ALTER TABLE` solo se mancanti — dati esistenti intatti). Aggiunta sezione "Procedura di aggiornamento senza perdita dati" |
 | **1.3.0** | 2026-05-15 | **Scheda bici** arricchita: tipo bici con menu a tendina (Strada/MTB/E-MTB/E-Bike), ordine campi invertito marca→modello, seriale forcella e seriale ammortizzatore. **4 stati ordine** con avanzamento sequenziale: accettata → in_lavorazione → pronto → consegnata; `dataUscita` impostata automaticamente alla consegna. **Dashboard** senza incasso: 4 card (clienti, in officina, pronte al ritiro, consegnate oggi). Filtro ordini come menu a tendina. `db.js` ripulito (fase sviluppo, no migrazioni) |
@@ -1112,4 +1113,4 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-*🚲 CicloDesk v1.5.0 — Gestionale per ciclo officina Cerica Bikelab*
+*🚲 CicloDesk v1.6.0 — Gestionale per ciclo officina Cerica Bikelab*

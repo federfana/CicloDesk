@@ -217,6 +217,7 @@ const UI = (() => {
               ${o.stato === 'consegnata'
                 ? `<button class="btn btn-sm btn-secondary" data-action="riapri-ordine" data-id="${o.id}">↩ Riapri</button>`
                 : ''}
+              <button class="btn btn-sm btn-secondary" data-action="print-ordine" data-id="${o.id}" title="Stampa / PDF">🖨️</button>
               <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏</button>
               <button class="btn btn-sm btn-danger"    data-action="del-ordine"  data-id="${o.id}">🗑</button>
             </div>
@@ -670,6 +671,69 @@ const UI = (() => {
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
+  // ── Stampa ordine ─────────────────────────────────────────────
+  async function printOrdine(id) {
+    const [ordine, clienti] = await Promise.all([
+      OrdiniService.findById(id),
+      ClientiService.getAll(),
+    ]);
+    const c           = clienti.find(x => x.id === ordine.clienteId);
+    const nomeCliente = c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto';
+    const statoLabel  = { accettata: 'Accettata', in_lavorazione: 'In lavorazione', pronto: 'Pronto al ritiro', consegnata: 'Consegnata' }[ordine.stato] || ordine.stato;
+    const fmtEur      = n => '€\u00a0' + (n || 0).toFixed(2).replace('.', ',');
+    const fmtDt       = iso => iso ? new Date(iso).toLocaleString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+
+    const vociRows = ordine.voci.map(v =>
+      `<tr><td>${v.nome}</td><td>${v.note || ''}</td><td class="num">${fmtEur(v.prezzo)}</td></tr>`
+    ).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8">
+<title>Ordine — ${nomeCliente}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#222;padding:28px 32px}
+  h1{font-size:19px;margin-bottom:3px}
+  .sub{color:#888;font-size:11px;margin-bottom:20px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-bottom:16px}
+  .field .lbl{font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;color:#777}
+  .field .val{font-size:13px;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-top:4px}
+  th{background:#f4f4f4;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #ddd}
+  td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}
+  .num{text-align:right;white-space:nowrap}
+  .tot td{font-weight:bold;font-size:14px;border-top:2px solid #333;border-bottom:none}
+  .badge{display:inline-block;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:bold}
+  .pagato{background:#d1fae5;color:#065f46}
+  .non-pagato{background:#fef3c7;color:#92400e}
+  .footer{margin-top:20px;padding-top:10px;border-top:1px solid #eee;font-size:10px;color:#aaa}
+  @media print{body{padding:12px}}
+</style></head><body>
+<h1>🚲 Cerica Bikelab — Ordine di lavoro</h1>
+<div class="sub">Stampato il ${new Date().toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric' })}</div>
+<div class="grid">
+  <div class="field"><div class="lbl">Cliente</div><div class="val">${nomeCliente}${c?.telefono ? ' &nbsp;·&nbsp; ' + c.telefono : ''}</div></div>
+  ${ordine.biciNome ? `<div class="field"><div class="lbl">Bici</div><div class="val">🚲 ${ordine.biciNome}</div></div>` : '<div></div>'}
+  <div class="field"><div class="lbl">Stato</div><div class="val">${statoLabel} &nbsp;<span class="badge ${ordine.pagato ? 'pagato' : 'non-pagato'}">${ordine.pagato ? '✅ Pagato' : '⚠ Non pagato'}</span></div></div>
+  <div class="field"><div class="lbl">Ingresso</div><div class="val">${fmtDt(ordine.dataIngresso)}${ordine.dataUscita ? ' &nbsp;·&nbsp; Uscita: ' + fmtDt(ordine.dataUscita) : ''}</div></div>
+  ${ordine.note ? `<div class="field" style="grid-column:1/-1"><div class="lbl">Note</div><div class="val">${ordine.note}</div></div>` : ''}
+</div>
+<table>
+  <thead><tr><th>Lavorazione</th><th>Note</th><th class="num">Prezzo</th></tr></thead>
+  <tbody>
+    ${vociRows}
+    <tr class="tot"><td colspan="2">Totale</td><td class="num">${fmtEur(ordine.totale)}</td></tr>
+  </tbody>
+</table>
+<div class="footer">CicloDesk v1.6.0</div>
+<script>window.onload=()=>window.print();<\/script>
+</body></html>`;
+
+    const w = window.open('', '_blank', 'width=700,height=820');
+    w.document.write(html);
+    w.document.close();
+  }
+
   return {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
@@ -677,5 +741,6 @@ const UI = (() => {
     apriModalBiciCliente, renderBiciList, apriModalAggiungiBici, aggiornaBiciSelect,
     aggiungiRigaVoce, raccogliVoci,
     openModal, closeAllModals,
+    printOrdine,
   };
 })();
