@@ -7,7 +7,7 @@ const STATI_VALIDI = ['accettata', 'in_lavorazione', 'pronto', 'consegnata'];
 
 function parse(row) {
   if (!row) return null;
-  return { ...row, voci: JSON.parse(row.voci || '[]'), pagato: Boolean(row.pagato) };
+  return { ...row, voci: JSON.parse(row.voci || '[]'), pagato: Boolean(row.pagato), acconto: row.acconto || 0, foto: JSON.parse(row.foto || '[]') };
 }
 
 // GET /api/ordini
@@ -50,22 +50,26 @@ router.post('/', (req, res) => {
     stato = 'accettata',
     dataIngresso, dataUscita = null,
     note = '', voci = [], totale = 0,
-    pagato = false,
+    pagato = false, acconto = 0, foto = [],
   } = req.body;
 
   if (!clienteId) return res.status(400).json({ error: 'clienteId obbligatorio' });
+  if (!Array.isArray(voci) || voci.length === 0) return res.status(400).json({ error: 'Almeno una lavorazione obbligatoria' });
+  const totaleCalcolato = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
+  if (parseFloat(acconto) > totaleCalcolato) return res.status(400).json({ error: 'Acconto non può superare il totale' });
 
   const statoFinal  = STATI_VALIDI.includes(stato) ? stato : 'accettata';
   const pagatoFinal = pagato ? 1 : 0;
   const id = newId();
 
   db.prepare(`
-    INSERT INTO ordini (id, clienteId, biciId, stato, dataIngresso, dataUscita, note, voci, totale, pagato)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO ordini (id, clienteId, biciId, stato, dataIngresso, dataUscita, note, voci, totale, pagato, acconto, foto)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, clienteId, biciId || null, statoFinal,
     dataIngresso || new Date().toISOString(),
-    dataUscita, note.trim(), JSON.stringify(voci), totale, pagatoFinal
+    dataUscita, note.trim(), JSON.stringify(voci), totale, pagatoFinal,
+    parseFloat(acconto) || 0, JSON.stringify(foto)
   );
 
   res.status(201).json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
@@ -87,10 +91,15 @@ router.put('/:id', (req, res) => {
     voci         = JSON.parse(existing.voci || '[]'),
     totale       = existing.totale,
     pagato       = existing.pagato,
+    acconto      = existing.acconto || 0,
+    foto         = JSON.parse(existing.foto || '[]'),
   } = req.body;
 
   const statoFinal  = STATI_VALIDI.includes(stato) ? stato : existing.stato;
   const pagatoFinal = pagato ? 1 : 0;
+  if (!Array.isArray(voci) || voci.length === 0) return res.status(400).json({ error: 'Almeno una lavorazione obbligatoria' });
+  const totaleCalcolato = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
+  if (parseFloat(acconto) > totaleCalcolato) return res.status(400).json({ error: 'Acconto non può superare il totale' });
   // Imposta dataUscita solo quando si consegna
   const dataUscitaFinal = statoFinal === 'consegnata'
     ? (dataUscita || new Date().toISOString())
@@ -98,12 +107,13 @@ router.put('/:id', (req, res) => {
 
   db.prepare(`
     UPDATE ordini
-    SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?, pagato=?
+    SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?, pagato=?, acconto=?, foto=?
     WHERE id=?
   `).run(
     clienteId, biciId || null, statoFinal,
     dataIngresso, dataUscitaFinal,
-    note, JSON.stringify(voci), totale, pagatoFinal, id
+    note, JSON.stringify(voci), totale, pagatoFinal,
+    parseFloat(acconto) || 0, JSON.stringify(foto), id
   );
 
   res.json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));

@@ -49,7 +49,9 @@ const OrdiniService = (() => {
         prezzo:        parseFloat(v.prezzo) || 0,
       })),
       totale,
-      pagato: Boolean(data.pagato),
+      pagato:  Boolean(data.pagato),
+      acconto: parseFloat(data.acconto) || 0,
+      foto:    data.foto || [],
     };
     if (data.id) return DB.update('ordini', data.id, { id: data.id, ...record });
     return DB.create('ordini', record);

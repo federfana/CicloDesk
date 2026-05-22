@@ -51,8 +51,9 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
   const { cnt } = db.prepare(
-    "SELECT COUNT(*) as cnt FROM ordini WHERE voci LIKE ?"
-  ).get(`%"${id}"%`);
+    `SELECT COUNT(*) as cnt FROM ordini, json_each(json_extract(ordini.voci, '$'))
+     WHERE json_extract(value, '$.lavorazioneId') = ?`
+  ).get(id);
   if (cnt > 0) {
     return res.status(409).json({
       error: `Questa lavorazione è presente in ${cnt} ordin${cnt === 1 ? 'e' : 'i'}. Rimuoverla dagli ordini prima di eliminarla.`

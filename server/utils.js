@@ -1,10 +1,11 @@
 /**
  * Utilità condivise tra le route server.
  */
+const crypto = require('crypto');
 
-/** Genera un ID univoco leggero (timestamp base36 + random). */
+/** Genera un ID univoco (timestamp base36 + 8 byte random hex). */
 function newId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  return Date.now().toString(36) + crypto.randomBytes(8).toString('hex');
 }
 
 module.exports = { newId };

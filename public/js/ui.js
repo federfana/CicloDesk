@@ -1,6 +1,10 @@
 const UI = (() => {
 
   // ── Helpers ───────────────────────────────────────────────────
+  function esc(str) {
+    return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function fmt(num) {
     return '€ ' + (num || 0).toFixed(2).replace('.', ',');
   }
@@ -29,6 +33,12 @@ const UI = (() => {
     pronto:         { cls: 'badge-pronto',         label: '✅ Pronto al ritiro'  },
     consegnata:     { cls: 'badge-consegnata',     label: '📦 Consegnata'        },
   };
+
+  function aggiornaColorStato() {
+    const sel = document.getElementById('ordine-stato');
+    sel.className = 'stato-' + sel.value;
+  }
+  document.getElementById('ordine-stato').addEventListener('change', aggiornaColorStato);
 
   function badgeStato(stato) {
     const cfg = STATO_CFG[stato] || STATO_CFG.accettata;
@@ -82,8 +92,34 @@ const UI = (() => {
     document.getElementById('stat-num-pronto').textContent  = pronti.length;
     document.getElementById('stat-num-out').textContent     = consOggi.length;
 
-    const container  = document.getElementById('dashboard-in-list');
+    // ── Notifiche: ordini fermi da >48h ─────────────────────────
+    const alertsContainer = document.getElementById('dashboard-alerts');
+    const ORE_SOGLIA = 48;
+    const adesso = Date.now();
+    const fermi = inOfficina.filter(o => {
+      const ingresso = new Date(o.dataIngresso).getTime();
+      const orePassate = (adesso - ingresso) / (1000 * 60 * 60);
+      return orePassate > ORE_SOGLIA;
+    });
     const clientiMap = Object.fromEntries(clienti.map(c => [c.id, c]));
+
+    if (fermi.length) {
+      alertsContainer.innerHTML = `
+        <div class="alert alert-warning">
+          <strong>⚠️ ${fermi.length} ordin${fermi.length === 1 ? 'e fermo' : 'i fermi'} da più di 48h:</strong>
+          <ul>${fermi.map(o => {
+            const c = clientiMap[o.clienteId];
+            const nome = c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto';
+            const ore = Math.round((adesso - new Date(o.dataIngresso).getTime()) / (1000*60*60));
+            const gg = Math.floor(ore / 24);
+            return `<li>${esc(nome)} — ${esc(o.biciNome) || 'ordine'} (${gg}g ${ore%24}h) <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">Apri</button></li>`;
+          }).join('')}</ul>
+        </div>`;
+    } else {
+      alertsContainer.innerHTML = '';
+    }
+
+    const container  = document.getElementById('dashboard-in-list');
 
     if (!inOfficina.length) {
       container.innerHTML = emptyState('Nessuna bici in officina al momento.');
@@ -95,11 +131,11 @@ const UI = (() => {
       return `
         <div class="card stato-${o.stato}">
           <div class="card-row">
-            <span class="card-title">🚲 ${c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto'}</span>
+            <span class="card-title">🚲 ${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto')}</span>
             ${badgeStato(o.stato)}
           </div>
           <span class="card-sub">
-            ${o.biciNome || '—'} &nbsp;|&nbsp; Ingresso: ${fmtDate(o.dataIngresso)}
+            ${esc(o.biciNome) || '—'} &nbsp;|&nbsp; Ingresso: ${fmtDate(o.dataIngresso)}
           </span>
           <span class="card-sub">
             ${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} —
@@ -133,19 +169,19 @@ const UI = (() => {
       return `
         <div class="card">
           <div class="card-row">
-            <span class="card-title">👤 ${c.nome}${c.cognome ? ' ' + c.cognome : ''}</span>
+            <span class="card-title">👤 ${esc(c.nome)}${c.cognome ? ' ' + esc(c.cognome) : ''}</span>
             <div class="card-actions">
-              <button class="btn btn-sm btn-secondary" data-action="storico-cliente"      data-id="${c.id}">📋 Storico</button>
-              <button class="btn btn-sm btn-secondary" data-action="bici-cliente"         data-id="${c.id}">🚲 Bici</button>
+              <button class="btn btn-sm btn-secondary" data-action="storico-cliente"      data-id="${c.id}" aria-label="Storico">📋 Storico</button>
+              <button class="btn btn-sm btn-secondary" data-action="bici-cliente"         data-id="${c.id}" aria-label="Bici">🚲 Bici</button>
               <button class="btn btn-sm btn-primary"   data-action="nuovo-ordine-cliente" data-id="${c.id}">+ Ordine</button>
-              <button class="btn btn-sm btn-secondary" data-action="edit-cliente"         data-id="${c.id}">✏</button>
-              <button class="btn btn-sm btn-danger"    data-action="del-cliente"          data-id="${c.id}">🗑</button>
+              <button class="btn btn-sm btn-secondary" data-action="edit-cliente"         data-id="${c.id}" aria-label="Modifica">✏</button>
+              <button class="btn btn-sm btn-danger"    data-action="del-cliente"          data-id="${c.id}" aria-label="Elimina">🗑</button>
             </div>
           </div>
           <div class="card-row">
-            <span class="card-sub">📞 ${c.telefono || '—'} &nbsp;|&nbsp; ✉ ${c.email || '—'}</span>
+            <span class="card-sub">📞 ${esc(c.telefono) || '—'} &nbsp;|&nbsp; ✉ ${esc(c.email) || '—'}</span>
           </div>
-          ${c.note ? `<span class="card-sub">📝 ${c.note}</span>` : ''}
+          ${c.note ? `<span class="card-sub">📝 ${esc(c.note)}</span>` : ''}
           <span class="card-sub">
             ${ordini.length} interventi &nbsp;|&nbsp; Speso: ${fmt(totaleSpeso)}
             ${attivi > 0 ? `&nbsp;<span class="card-badge badge-in-lavorazione">${attivi} in corso</span>` : ''}
@@ -191,21 +227,21 @@ const UI = (() => {
     container.innerHTML = ordini.map(o => {
       const c        = clientiMap[o.clienteId];
       const vociHtml = o.voci.map(v =>
-        `<span class="tag">${v.nome} — ${fmt(v.prezzo)}${v.note ? ` (${v.note})` : ''}</span>`
+        `<span class="tag">${esc(v.nome)} — ${fmt(v.prezzo)}${v.note ? ` (${esc(v.note)})` : ''}</span>`
       ).join('');
       return `
         <div class="card stato-${o.stato}">
           <div class="card-row">
-            <span class="card-title">👤 ${c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente rimosso'}</span>
+            <span class="card-title">👤 ${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente rimosso')}</span>
             ${badgeStato(o.stato)}
           </div>
           <span class="card-sub">
-            ${o.biciNome ? `🚲 ${o.biciNome} &nbsp;|&nbsp; ` : ''}
+            ${o.biciNome ? `🚲 ${esc(o.biciNome)} &nbsp;|&nbsp; ` : ''}
             Ingresso: ${fmtDate(o.dataIngresso)}
             ${o.dataUscita ? '&nbsp;|&nbsp; Uscita: ' + fmtDate(o.dataUscita) : ''}
           </span>
-          ${o.note ? `<span class="card-sub">📝 ${o.note}</span>` : ''}
-          <span class="card-sub">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}</span>
+          ${o.note ? `<span class="card-sub">📝 ${esc(o.note)}</span>` : ''}
+          <span class="card-sub">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}${o.acconto ? ` — Acconto: ${fmt(o.acconto)} (Resto: ${fmt(Math.max(0, o.totale - o.acconto))})` : ''}</span>
           <div>${vociHtml || '<span class="card-sub">Nessuna lavorazione</span>'}</div>
           <div class="card-row">
             <strong>${fmt(o.totale)}</strong>
@@ -217,9 +253,9 @@ const UI = (() => {
               ${o.stato === 'consegnata'
                 ? `<button class="btn btn-sm btn-secondary" data-action="riapri-ordine" data-id="${o.id}">↩ Riapri</button>`
                 : ''}
-              <button class="btn btn-sm btn-secondary" data-action="print-ordine" data-id="${o.id}" title="Stampa / PDF">🖨️</button>
-              <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏</button>
-              <button class="btn btn-sm btn-danger"    data-action="del-ordine"  data-id="${o.id}">🗑</button>
+              <button class="btn btn-sm btn-secondary" data-action="print-ordine" data-id="${o.id}" title="Stampa / PDF" aria-label="Stampa">🖨️</button>
+              <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}" aria-label="Modifica">✏</button>
+              <button class="btn btn-sm btn-danger"    data-action="del-ordine"  data-id="${o.id}" aria-label="Elimina">🗑</button>
             </div>
           </div>
         </div>`;
@@ -239,14 +275,14 @@ const UI = (() => {
     container.innerHTML = lavorazioni.map(l => `
       <div class="card">
         <div class="card-row">
-          <span class="card-title">🔩 ${l.nome}</span>
+          <span class="card-title">🔩 ${esc(l.nome)}</span>
           <div class="card-actions">
             <span style="font-weight:700;color:var(--primary)">${fmt(l.prezzo)}</span>
-            <button class="btn btn-sm btn-secondary" data-action="edit-lavorazione" data-id="${l.id}">✏</button>
-            <button class="btn btn-sm btn-danger"    data-action="del-lavorazione"  data-id="${l.id}">🗑</button>
+            <button class="btn btn-sm btn-secondary" data-action="edit-lavorazione" data-id="${l.id}" aria-label="Modifica">✏</button>
+            <button class="btn btn-sm btn-danger"    data-action="del-lavorazione"  data-id="${l.id}" aria-label="Elimina">🗑</button>
           </div>
         </div>
-        ${l.descrizione ? `<span class="card-sub">${l.descrizione}</span>` : ''}
+        ${l.descrizione ? `<span class="card-sub">${esc(l.descrizione)}</span>` : ''}
       </div>`
     ).join('');
   }
@@ -298,7 +334,7 @@ const UI = (() => {
 
     container.innerHTML = ordini.map(o => {
       const vociHtml = o.voci.map(v =>
-        `<span class="tag">${v.nome} — ${fmt(v.prezzo)}${v.note ? ` (${v.note})` : ''}</span>`
+        `<span class="tag">${esc(v.nome)} — ${fmt(v.prezzo)}${v.note ? ` (${esc(v.note)})` : ''}</span>`
       ).join('');
       return `
         <div class="storico-ordine-card stato-${o.stato}">
@@ -308,15 +344,15 @@ const UI = (() => {
               ${o.dataUscita
                 ? `<span class="storico-ordine-uscita">→ ${fmtDate(o.dataUscita)}</span>`
                 : ''}
-              ${o.biciNome ? `<span class="card-sub" style="margin-left:.4rem">🚲 ${o.biciNome}</span>` : ''}
+              ${o.biciNome ? `<span class="card-sub" style="margin-left:.4rem">🚲 ${esc(o.biciNome)}</span>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:.6rem;">
               ${badgeStato(o.stato)}
               <span class="storico-ordine-totale">${fmt(o.totale)}</span>
-              <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏</button>
+              <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}" aria-label="Modifica">✏</button>
             </div>
           </div>
-          ${o.note ? `<p class="card-sub" style="margin-bottom:.3rem">📝 ${o.note}</p>` : ''}
+          ${o.note ? `<p class="card-sub" style="margin-bottom:.3rem">📝 ${esc(o.note)}</p>` : ''}
           <p class="card-sub" style="margin-bottom:.3rem">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}</p>
           <div class="storico-voci">
             ${vociHtml || '<span class="card-sub">Nessuna lavorazione registrata</span>'}
@@ -363,19 +399,19 @@ const UI = (() => {
       return `
         <div class="card" style="margin-bottom:.5rem">
           <div class="card-row">
-            <span class="card-title">🚲 ${nome}</span>
+            <span class="card-title">🚲 ${esc(nome)}</span>
             <div class="card-actions">
               ${tagTipo(b.tipo)}
-              <button class="btn btn-sm btn-secondary" data-action="edit-bici" data-id="${b.id}">✏</button>
-              <button class="btn btn-sm btn-danger"    data-action="del-bici"  data-id="${b.id}">🗑</button>
+              <button class="btn btn-sm btn-secondary" data-action="edit-bici" data-id="${b.id}" aria-label="Modifica">✏</button>
+              <button class="btn btn-sm btn-danger"    data-action="del-bici"  data-id="${b.id}" aria-label="Elimina">🗑</button>
             </div>
           </div>
           <div class="card-sub" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.2rem">
-            ${b.colore ? `<span>🎨 ${b.colore}</span>` : ''}
-            ${b.seriale_forcella ? `<span>🔧 Forcella: ${b.seriale_forcella}</span>` : ''}
-            ${b.seriale_ammortizzatore ? `<span>🔧 Ammortizzatore: ${b.seriale_ammortizzatore}</span>` : ''}
+            ${b.colore ? `<span>🎨 ${esc(b.colore)}</span>` : ''}
+            ${b.seriale_forcella ? `<span>🔧 Forcella: ${esc(b.seriale_forcella)}</span>` : ''}
+            ${b.seriale_ammortizzatore ? `<span>🔧 Ammortizzatore: ${esc(b.seriale_ammortizzatore)}</span>` : ''}
           </div>
-          ${b.note ? `<span class="card-sub">📝 ${b.note}</span>` : ''}
+          ${b.note ? `<span class="card-sub">📝 ${esc(b.note)}</span>` : ''}
         </div>`;
     }).join('');
   }
@@ -422,6 +458,25 @@ const UI = (() => {
     document.getElementById('ordine-id').value   = ordine?.id   || '';
     document.getElementById('ordine-note').value = ordine?.note || '';
     document.getElementById('ordine-pagato').checked = Boolean(ordine?.pagato);
+    document.getElementById('ordine-acconto').value  = ordine?.acconto ? ordine.acconto.toFixed(2) : '';
+
+    // Stato (visibile solo in modifica)
+    const statoWrap = document.getElementById('ordine-stato-wrap');
+    const statoSelect = document.getElementById('ordine-stato');
+    if (ordine) {
+      statoWrap.classList.remove('hidden');
+      statoSelect.value = ordine.stato || 'accettata';
+    } else {
+      statoWrap.classList.add('hidden');
+      statoSelect.value = 'accettata';
+    }
+    aggiornaColorStato();
+
+    // Foto
+    const rawFoto = ordine?.foto || [];
+    _ordineFoto = Array.isArray(rawFoto) ? rawFoto : JSON.parse(rawFoto || '[]');
+    renderFotoPreview();
+    document.getElementById('ordine-foto-input').value = '';
 
     const dtInput = document.getElementById('ordine-data-ingresso');
     dtInput.value = toDatetimeLocal(ordine?.dataIngresso || new Date().toISOString());
@@ -621,25 +676,64 @@ const UI = (() => {
     tbody.appendChild(tr);
   }
 
+  // ── Foto ordine ───────────────────────────────────────────────
+  let _ordineFoto = [];
+
+  function renderFotoPreview() {
+    const container = document.getElementById('ordine-foto-preview');
+    if (!_ordineFoto.length) { container.innerHTML = ''; return; }
+    container.innerHTML = _ordineFoto
+      .filter(src => typeof src === 'string' && src.startsWith('data:image/'))
+      .map((src, i) =>
+      `<div class="foto-thumb">
+        <img src="${src}" alt="Foto ${i+1}" />
+        <button type="button" class="btn-foto-remove" data-foto-idx="${i}" aria-label="Rimuovi foto">✕</button>
+      </div>`
+    ).join('');
+  }
+
+  function getOrdineFoto() {
+    return _ordineFoto;
+  }
+
   function aggiornaLocale() {
     let tot = 0;
     document.querySelectorAll('.inp-prezzo-voce').forEach(i => tot += parseFloat(i.value) || 0);
     document.getElementById('totale-ordine').textContent = fmt(tot);
+    // Aggiorna info resto
+    const acconto = parseFloat(document.getElementById('ordine-acconto')?.value) || 0;
+    const restoLabel = document.getElementById('ordine-resto-label');
+    if (restoLabel) {
+      if (acconto > 0) {
+        const resto = Math.max(0, tot - acconto);
+        restoLabel.textContent = `Acconto: ${fmt(acconto)} — Resta da saldare: ${fmt(resto)}`;
+      } else {
+        restoLabel.textContent = '';
+      }
+    }
   }
 
   function raccogliVoci() {
     const voci = [];
+    let righeInvalide = 0;
     document.querySelectorAll('#tbody-voci tr').forEach(tr => {
       const hid   = tr.querySelector('.hid-lavorazione-id');
       const lavId = hid ? hid.value : '';
-      if (!lavId) return;
+      const nome  = tr.querySelector('.inp-lavorazione')?.value || '';
+      if (!lavId) {
+        if (nome.trim()) righeInvalide++;
+        return;
+      }
       voci.push({
         lavorazioneId: lavId,
-        nome:          tr.querySelector('.inp-lavorazione')?.value  || '',
+        nome,
         note:          tr.querySelector('.inp-note-voce')?.value    || '',
         prezzo:        parseFloat(tr.querySelector('.inp-prezzo-voce')?.value) || 0,
       });
     });
+    if (righeInvalide > 0) {
+      throw new Error(`${righeInvalide} rig${righeInvalide === 1 ? 'a non valida' : 'he non valide'}: seleziona una lavorazione dal catalogo.`);
+    }
     return voci;
   }
 
@@ -711,12 +805,12 @@ const UI = (() => {
     const fmtDt       = iso => iso ? new Date(iso).toLocaleString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
 
     const vociRows = ordine.voci.map(v =>
-      `<tr><td>${v.nome}</td><td>${v.note || ''}</td><td class="num">${fmtEur(v.prezzo)}</td></tr>`
+      `<tr><td>${esc(v.nome)}</td><td>${esc(v.note)}</td><td class="num">${fmtEur(v.prezzo)}</td></tr>`
     ).join('');
 
     const html = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="UTF-8">
-<title>Ordine — ${nomeCliente}</title>
+<title>Ordine — ${esc(nomeCliente)}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;font-size:13px;color:#222;padding:28px 32px}
@@ -739,11 +833,11 @@ const UI = (() => {
 <h1>🚲 Cerica Bikelab — Ordine di lavoro</h1>
 <div class="sub">Stampato il ${new Date().toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric' })}</div>
 <div class="grid">
-  <div class="field"><div class="lbl">Cliente</div><div class="val">${nomeCliente}${c?.telefono ? ' &nbsp;·&nbsp; ' + c.telefono : ''}</div></div>
-  ${ordine.biciNome ? `<div class="field"><div class="lbl">Bici</div><div class="val">🚲 ${ordine.biciNome}</div></div>` : '<div></div>'}
+  <div class="field"><div class="lbl">Cliente</div><div class="val">${esc(nomeCliente)}${c?.telefono ? ' &nbsp;·&nbsp; ' + esc(c.telefono) : ''}</div></div>
+  ${ordine.biciNome ? `<div class="field"><div class="lbl">Bici</div><div class="val">🚲 ${esc(ordine.biciNome)}</div></div>` : '<div></div>'}
   <div class="field"><div class="lbl">Stato</div><div class="val">${statoLabel} &nbsp;<span class="badge ${ordine.pagato ? 'pagato' : 'non-pagato'}">${ordine.pagato ? '✅ Pagato' : '⚠ Non pagato'}</span></div></div>
   <div class="field"><div class="lbl">Ingresso</div><div class="val">${fmtDt(ordine.dataIngresso)}${ordine.dataUscita ? ' &nbsp;·&nbsp; Uscita: ' + fmtDt(ordine.dataUscita) : ''}</div></div>
-  ${ordine.note ? `<div class="field" style="grid-column:1/-1"><div class="lbl">Note</div><div class="val">${ordine.note}</div></div>` : ''}
+  ${ordine.note ? `<div class="field" style="grid-column:1/-1"><div class="lbl">Note</div><div class="val">${esc(ordine.note)}</div></div>` : ''}
 </div>
 <table>
   <thead><tr><th>Lavorazione</th><th>Note</th><th class="num">Prezzo</th></tr></thead>
@@ -752,7 +846,7 @@ const UI = (() => {
     <tr class="tot"><td colspan="2">Totale</td><td class="num">${fmtEur(ordine.totale)}</td></tr>
   </tbody>
 </table>
-<div class="footer">CicloDesk v1.6.0</div>
+<div class="footer">CicloDesk v1.7.0</div>
 <script>window.onload=()=>window.print();<\/script>
 </body></html>`;
 
@@ -761,13 +855,70 @@ const UI = (() => {
     w.document.close();
   }
 
+  // ── Ricerca Globale ────────────────────────────────────────────
+  async function cercaGlobale(query) {
+    const q = query.toLowerCase().trim();
+    const results = document.getElementById('search-globale-results');
+    if (!q) { results.classList.add('hidden'); return; }
+
+    const [clienti, ordini, lavorazioni] = await Promise.all([
+      ClientiService.getAll(),
+      OrdiniService.getAll(),
+      LavorazioniService.getAll(),
+    ]);
+
+    const hits = [];
+
+    // Clienti
+    const clientiMap = Object.fromEntries(clienti.map(c => [c.id, c]));
+    clienti.filter(c =>
+      [c.nome, c.cognome, c.telefono, c.email].filter(Boolean).join(' ').toLowerCase().includes(q)
+    ).slice(0, 5).forEach(c => {
+      hits.push({ icon: '👤', label: [c.nome, c.cognome].filter(Boolean).join(' '), sub: c.telefono || c.email || '', action: 'edit-cliente', id: c.id });
+    });
+
+    // Ordini
+    ordini.filter(o => {
+      const c = clientiMap[o.clienteId];
+      return (
+        [c?.nome, c?.cognome].filter(Boolean).join(' ').toLowerCase().includes(q) ||
+        (o.biciNome || '').toLowerCase().includes(q) ||
+        (o.note || '').toLowerCase().includes(q) ||
+        o.voci.some(v => v.nome.toLowerCase().includes(q))
+      );
+    }).slice(0, 5).forEach(o => {
+      const c = clientiMap[o.clienteId];
+      hits.push({ icon: '📋', label: `Ordine — ${c ? [c.nome, c.cognome].filter(Boolean).join(' ') : '?'}`, sub: o.biciNome || fmtDate(o.dataIngresso), action: 'edit-ordine', id: o.id });
+    });
+
+    // Lavorazioni catalogo
+    lavorazioni.filter(l =>
+      l.nome.toLowerCase().includes(q) || (l.descrizione || '').toLowerCase().includes(q)
+    ).slice(0, 3).forEach(l => {
+      hits.push({ icon: '🔩', label: l.nome, sub: fmt(l.prezzo), action: 'edit-lavorazione', id: l.id });
+    });
+
+    if (!hits.length) {
+      results.innerHTML = '<div class="global-search-empty">Nessun risultato</div>';
+    } else {
+      results.innerHTML = hits.map(h =>
+        `<div class="global-search-item" data-action="${h.action}" data-id="${h.id}">
+          <span class="global-search-icon">${h.icon}</span>
+          <span class="global-search-label">${esc(h.label)}</span>
+          <span class="global-search-sub">${esc(h.sub)}</span>
+        </div>`
+      ).join('');
+    }
+    results.classList.remove('hidden');
+  }
+
   return {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
     apriModalStorico, filtraStorico,
     apriModalBiciCliente, renderBiciList, apriModalAggiungiBici, aggiornaBiciSelect,
-    aggiungiRigaVoce, raccogliVoci,
+    aggiungiRigaVoce, raccogliVoci, getOrdineFoto, renderFotoPreview,
     openModal, closeAllModals,
-    printOrdine,
+    printOrdine, cercaGlobale, aggiornaLocale,
   };
 })();

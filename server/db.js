@@ -68,6 +68,12 @@ const colonneOrdini = db.prepare('PRAGMA table_info(ordini)').all().map(r => r.n
 if (!colonneOrdini.includes('pagato')) {
   db.exec('ALTER TABLE ordini ADD COLUMN pagato INTEGER DEFAULT 0');
 }
+if (!colonneOrdini.includes('acconto')) {
+  db.exec('ALTER TABLE ordini ADD COLUMN acconto REAL DEFAULT 0');
+}
+if (!colonneOrdini.includes('foto')) {
+  db.exec("ALTER TABLE ordini ADD COLUMN foto TEXT DEFAULT '[]'");
+}
 
 // ── Seed lavorazioni default (solo se tabella vuota) ───────────
 const { n } = db.prepare('SELECT COUNT(*) as n FROM lavorazioni').get();

@@ -44,7 +44,7 @@ router.put('/:id', (req, res) => {
     UPDATE clienti SET nome=?, cognome=?, telefono=?, email=?, note=? WHERE id=?
   `).run(nome?.trim() || existing.nome, cognome.trim(), telefono.trim(), email.trim(), note.trim(), id);
 
-  res.json({ ...existing, nome, cognome, telefono, email, note });
+  res.json(db.prepare('SELECT * FROM clienti WHERE id = ?').get(id));
 });
 
 // DELETE /api/clienti/:id

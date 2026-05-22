@@ -245,7 +245,16 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 
 ### Dashboard
 - **4 contatori** in tempo reale: clienti registrati, bici in officina, pronte al ritiro (evidenziato in verde), consegnate oggi
+- **⚠️ Notifiche automatiche** — banner arancione per ordini fermi da più di 48h con link diretto all'ordine
+- **💾 Pulsanti backup** — download diretto del database (.db) o export JSON completo
+- **📥 Importa JSON** — ripristina tutti i dati da un file JSON esportato in precedenza (sovrascrive i dati attuali con conferma)
+- **📦 Loading spinner** — indicatore visivo durante il caricamento dei dati
 - Lista bici attualmente in officina con badge stato colorato e pulsante avanzamento rapido
+
+### 🔍 Ricerca Globale *(v1.7.0)*
+- Barra di ricerca nell'header, accessibile da qualsiasi vista
+- Cerca in tempo reale (con debounce 250ms) tra clienti, ordini e lavorazioni
+- Risultati cliccabili: apre direttamente il modal di modifica dell'elemento trovato
 
 ### Schede Clienti
 - Anagrafica: nome, **cognome**, telefono, email, note libere
@@ -280,7 +289,11 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 ### Ordini di Lavoro
 - Selezione cliente + bici specifica + lavorazioni dal catalogo
 - Prezzo auto-compilato dal catalogo, modificabile voce per voce
+- **📷 Foto allegata** — upload di immagini (max 2MB) per documentare lo stato della bici all'ingresso; preview con thumbnails rimovibili
+- **💰 Gestione acconti/caparre** — campo dedicato con calcolo in tempo reale del "Resta da saldare"; info acconto visibile nelle card ordini
+- **Note per voce** — ogni lavorazione nell'ordine ha un campo note dedicato
 - **4 stati** con avanzamento sequenziale tramite pulsante dedicato:
+- **Modifica stato** — select colorato nel modal modifica ordine (visibile solo in modifica, nascosto in creazione)
 
 | Stato | Colore bordo | Badge | Pulsante avanza |
 |---|---|---|---|
@@ -832,8 +845,39 @@ Tutte le API accettano e restituiscono **JSON**.
       "prezzo":        12.00
     }
   ],
-  "totale": 12.00
+  "totale": 12.00,
+  "acconto": 5.00,
+  "foto": ["data:image/jpeg;base64,..."]
 }
+```
+
+---
+
+### Backup
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| `GET` | `/api/backup` | Download file .db (SQLite completo) |
+| `GET` | `/api/backup/json` | Export tutti i dati in formato JSON |
+| `POST` | `/api/import/json` | Importa dati da file JSON (sovrascrive tutto) |
+
+**Corpo POST /api/import/json:**
+```json
+{
+  "clienti": [...],
+  "bici": [...],
+  "lavorazioni": [...],
+  "ordini": [...]
+}
+```
+
+**Risposta:**
+```json
+{
+  "ok": true,
+  "importati": { "clienti": 5, "bici": 3, "lavorazioni": 13, "ordini": 8 }
+}
+```
 ```
 
 **Valori validi per `stato`:** `accettata` · `in_lavorazione` · `pronto` · `consegnata`
@@ -920,6 +964,8 @@ CREATE TABLE IF NOT EXISTS ordini (
   voci         TEXT DEFAULT '[]',         -- array JSON serializzato
   totale       REAL DEFAULT 0,
   pagato       INTEGER DEFAULT 0,          -- 0 = non pagato, 1 = pagato
+  acconto      REAL DEFAULT 0,            -- caparra/acconto versato
+  foto         TEXT DEFAULT '[]',         -- array JSON di immagini base64
   FOREIGN KEY (clienteId) REFERENCES clienti(id)
 );
 ```
@@ -956,7 +1002,18 @@ CREATE TABLE IF NOT EXISTS ordini (
 
 ## 12. Backup e ripristino
 
-### Backup manuale
+### Backup dall'interfaccia *(v1.7.0)*
+
+Dalla **Dashboard**, tre pulsanti:
+- **💾 Backup Database (.db)** — scarica il file SQLite completo, pronto per il ripristino
+- **📄 Export JSON** — scarica tutti i dati (clienti, bici, ordini, lavorazioni) in formato JSON leggibile
+- **📥 Importa JSON** — ripristina i dati da un file JSON esportato precedentemente
+
+> ⚠️ L'importazione **sovrascrive tutti i dati attuali**. Viene chiesta conferma prima di procedere.
+
+> 💡 Il backup .db è la soluzione più completa. L'export JSON è utile per importazioni in altri sistemi o per ripristino rapido dall'interfaccia.
+
+### Backup manuale (terminale)
 
 ```bash
 # Windows
@@ -1045,6 +1102,8 @@ Apri il browser, controlla che i dati esistenti siano intatti e che le nuove fun
 |---|---|---|---|---|
 | **1.4.0** | `clienti` | `cognome` | TEXT | `''` |
 | **1.4.0** | `ordini` | `pagato` | INTEGER | `0` |
+| **1.7.0** | `ordini` | `acconto` | REAL | `0` |
+| **1.7.0** | `ordini` | `foto` | TEXT | `'[]'` |
 
 ---
 
@@ -1103,6 +1162,8 @@ const PORT = process.env.PORT || 3001;
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.8.0** | 2026-05-22 | **Sicurezza:** protezione XSS completa (escape HTML su tutti i dati utente renderizzati con innerHTML); backup .db sicuro in WAL mode (usa `db.backup()` su file temporaneo); validazione foto (solo `data:image/`); `newId()` con `crypto.randomBytes` (64 bit di entropia); validazione acconto server-side ricalcola totale dalle voci. **Bug fix:** `_ordineFoto.map is not a function` (normalizzazione stringa/array); query LIKE su JSON sostituita con `json_each()`; PUT clienti restituisce dati reali dal DB; `raccogliVoci()` segnala errore se righe senza lavorazione selezionata; rimosso dead code (listener change su hidden input). **UX:** tasto Escape chiude i modali; loading spinner durante caricamento dati; conferma chiusura modale se il form ha modifiche non salvate; `aria-label` su tutti i pulsanti emoji (accessibilità); navigazione mobile con scroll orizzontale. **Modifica stato ordine:** select colorato con icone nel modal modifica (nascosto in creazione); colore sfondo/bordo cambia dinamicamente in base allo stato selezionato. **Codice:** alert() rimpiazzati con toast showError() |
+| **1.7.0** | 2026-05-22 | **Ricerca globale:** barra nell'header con ricerca live tra clienti, ordini e lavorazioni; risultati cliccabili. **Notifiche dashboard:** alert automatico per ordini fermi da più di 48h con link diretto. **Foto ordine:** upload immagini (max 2MB) con preview e rimozione; salvate come base64 nel DB. **Gestione acconti/caparre:** campo dedicato nel modal ordine, calcolo resto in tempo reale, info visibile nelle card. **Backup da interfaccia:** pulsanti in dashboard per download .db e export JSON. **Conferma cambio cliente:** in modifica ordine, richiesta conferma se si cambia il cliente associato. **Fix:** prezzo lavorazioni non sovrascrive il prezzo salvato nell'ordine; cognome obbligatorio; bici visibile subito dopo selezione cliente in nuovo ordine; nome bici via JOIN SQL (sempre aggiornato). **API:** `GET /api/backup` e `GET /api/backup/json`. **DB:** nuove colonne `acconto` e `foto` su ordini (migrazione automatica) |
 | **1.6.0** | 2026-05-22 | **Aggiornamenti tecnici:** Node.js v22 LTS come versione consigliata (v20 EOL); `better-sqlite3` aggiornato a v12.10.0 (supporto nativo Node.js v22, binari precompilati). **Stampa ordine:** pulsante 🖨️ su ogni card ordine — apre finestra di stampa con ricevuta formattata (cliente, bici, lavorazioni, totale, pagamento); compatibile con "Salva come PDF" del browser. **Fix:** doppia bici nel dropdown modifica ordine (race condition tra due chiamate concorrenti ad `aggiornaBiciSelect`). **UX:** clienti ordinati per cognome → nome (stile rubrica) |
 | **1.5.0** | 2026-05-22 | **Qualità e UX:** toast verde di conferma dopo ogni salvataggio/eliminazione; ordinamento ordini per urgenza (aperti prima, poi per data); filtro ordini persistente tra sessioni (`sessionStorage`); conferma eliminazione cliente con conteggio ordini e bici; eliminazione lavorazione bloccata se usata in ordini attivi. **Dropdown custom** uniformi per clienti e lavorazioni (stesso stile su tutti i browser; ri-apertura dropdown su voce già selezionata). **Validazioni:** almeno una lavorazione obbligatoria per ordine; prezzo negativo rifiutato lato server. **Codice:** `server/utils.js` con `newId()` centralizzata; campo `bici` rimosso da clienti (era inutilizzato); data iscrizione cliente visibile nella scheda |
 | **1.4.0** | 2026-05-22 | **Scheda clienti:** aggiunto campo `cognome` (form, card, storico, modal bici). **Ordini:** aggiunto flag `pagato`. **Migrazioni automatiche** al riavvio per entrambe le colonne (`ALTER TABLE` solo se mancanti — dati esistenti intatti). Aggiunta sezione "Procedura di aggiornamento senza perdita dati" |
@@ -1113,4 +1174,4 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-*🚲 CicloDesk v1.6.0 — Gestionale per ciclo officina Cerica Bikelab*
+*🚲 CicloDesk v1.8.0 — Gestionale per ciclo officina Cerica Bikelab*

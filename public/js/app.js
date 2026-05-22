@@ -27,6 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => t.remove(), 3000);
   }
 
+  // ── Loading overlay ───────────────────────────────────────────
+  const loadingOverlay = document.createElement('div');
+  loadingOverlay.id = 'loading-overlay';
+  loadingOverlay.innerHTML = '<div class="spinner"></div>';
+  document.body.appendChild(loadingOverlay);
+  let _loadingCount = 0;
+  function showLoading() { _loadingCount++; loadingOverlay.classList.add('visible'); }
+  function hideLoading() { _loadingCount = Math.max(0, _loadingCount - 1); if (!_loadingCount) loadingOverlay.classList.remove('visible'); }
+
   // ── Navigazione view ──────────────────────────────────────────
   let currentView = 'dashboard';
 
@@ -40,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function refreshView(name) {
+    showLoading();
     try {
       switch (name) {
         case 'dashboard': await UI.renderDashboard(); break;
@@ -48,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'catalogo':  await UI.renderCatalogo(); break;
       }
     } catch (e) { showError(e.message); }
+    finally { hideLoading(); }
   }
 
   function getOrdiniFilter() {
@@ -76,9 +87,39 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.filtraStorico(e.target.value)
   );
 
-  // ── Cambio cliente nel modal ordine → aggiorna select bici ────
-  document.getElementById('ordine-cliente-id').addEventListener('change', async function () {
-    await UI.aggiornaBiciSelect(this.value).catch(showError);
+  // ── Ricerca globale ───────────────────────────────────────────
+  let _searchGlobaleTimeout = null;
+  const searchGlobaleInput = document.getElementById('search-globale');
+  const searchGlobaleResults = document.getElementById('search-globale-results');
+
+  searchGlobaleInput.addEventListener('input', () => {
+    clearTimeout(_searchGlobaleTimeout);
+    _searchGlobaleTimeout = setTimeout(() => {
+      UI.cercaGlobale(searchGlobaleInput.value).catch(showError);
+    }, 250);
+  });
+
+  searchGlobaleInput.addEventListener('blur', () => {
+    setTimeout(() => searchGlobaleResults.classList.add('hidden'), 200);
+  });
+  searchGlobaleInput.addEventListener('focus', () => {
+    if (searchGlobaleInput.value.trim()) UI.cercaGlobale(searchGlobaleInput.value).catch(showError);
+  });
+
+  searchGlobaleResults.addEventListener('mousedown', async (ev) => {
+    const item = ev.target.closest('.global-search-item');
+    if (!item) return;
+    ev.preventDefault();
+    const { action, id } = item.dataset;
+    searchGlobaleResults.classList.add('hidden');
+    searchGlobaleInput.value = '';
+    try {
+      switch (action) {
+        case 'edit-cliente':     await UI.apriModalCliente(id); break;
+        case 'edit-ordine':      await UI.apriModalOrdine(id); break;
+        case 'edit-lavorazione': await UI.apriModalLavorazione(id); break;
+      }
+    } catch (e) { showError(e.message); }
   });
 
   // ── Apertura modali principali ────────────────────────────────
@@ -90,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const clienti = await ClientiService.getAll();
       if (!clienti.length) {
-        alert('⚠ Aggiungi prima almeno un cliente!');
+        showError('Aggiungi prima almeno un cliente!');
         return showView('clienti');
       }
       await UI.apriModalOrdine();
@@ -99,6 +140,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-aggiungi-voce').addEventListener('click', () => {
     UI.aggiungiRigaVoce({});
+  });
+
+  // ── Upload foto ordine ────────────────────────────────────────
+  document.getElementById('ordine-foto-input').addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    for (const file of files) {
+      if (file.size > 2 * 1024 * 1024) { showError('Foto troppo grande (max 2MB)'); continue; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        UI.getOrdineFoto().push(reader.result);
+        UI.renderFotoPreview();
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = '';
+  });
+
+  // Rimuovi foto (delegazione)
+  document.getElementById('ordine-foto-preview').addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-foto-remove');
+    if (!btn) return;
+    const idx = parseInt(btn.dataset.fotoIdx);
+    UI.getOrdineFoto().splice(idx, 1);
+    UI.renderFotoPreview();
+  });
+
+  // ── Acconto input → aggiorna resto in tempo reale ─────────────
+  document.getElementById('ordine-acconto').addEventListener('input', () => {
+    UI.aggiornaLocale();
+  });
+
+  // ── Backup database ───────────────────────────────────────────
+  document.getElementById('btn-backup-db').addEventListener('click', () => {
+    window.location.href = '/api/backup';
+  });
+  document.getElementById('btn-backup-json').addEventListener('click', () => {
+    window.location.href = '/api/backup/json';
+  });
+
+  // ── Import JSON ───────────────────────────────────────────────
+  document.getElementById('btn-import-json').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!confirm('⚠️ L\'importazione SOVRASCRIVERÀ tutti i dati attuali.\n\nAssicurati di aver fatto un backup prima.\n\nVuoi continuare?')) {
+      e.target.value = '';
+      return;
+    }
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const res  = await fetch('/api/import/json', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      const s = result.importati;
+      showSuccess(`✅ Importati: ${s.clienti} clienti, ${s.bici} bici, ${s.lavorazioni} lavorazioni, ${s.ordini} ordini`);
+      await refreshView(currentView);
+    } catch (err) {
+      showError('Errore importazione: ' + err.message);
+    }
+    e.target.value = '';
   });
 
   document.getElementById('btn-nuova-lavorazione').addEventListener('click', () =>
@@ -210,15 +315,20 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   document.getElementById('overlay').addEventListener('click', UI.closeAllModals);
 
+  // ── Escape key chiude modali ──────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') UI.closeAllModals();
+  });
+
   // ── Submit Cliente ────────────────────────────────────────────
   document.getElementById('form-cliente').addEventListener('submit', async e => {
     e.preventDefault();
     const nome    = document.getElementById('cliente-nome').value.trim();
     const cognome  = document.getElementById('cliente-cognome').value.trim();
     const tel      = document.getElementById('cliente-telefono').value.trim();
-    if (!nome)    return alert('Il nome è obbligatorio.');
-    if (!cognome) return alert('Il cognome è obbligatorio.');
-    if (!tel)     return alert('Il telefono è obbligatorio.');
+    if (!nome)    return showError('Il nome è obbligatorio.');
+    if (!cognome) return showError('Il cognome è obbligatorio.');
+    if (!tel)     return showError('Il telefono è obbligatorio.');
     try {
       await ClientiService.salva({
         id:       document.getElementById('cliente-id').value || null,
@@ -228,6 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         email:    document.getElementById('cliente-email').value,
         note:     document.getElementById('cliente-note').value,
       });
+      _formDirty = false;
       UI.closeAllModals();
       showSuccess('✅ Cliente salvato');
       await refreshView(currentView);
@@ -238,10 +349,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('form-ordine').addEventListener('submit', async e => {
     e.preventDefault();
     const clienteId = document.getElementById('ordine-cliente-id').value;
-    if (!clienteId) return alert('Seleziona un cliente.');
+    if (!clienteId) return showError('Seleziona un cliente.');
     try {
       const voci = UI.raccogliVoci();
-      if (!voci.length) return alert('Aggiungi almeno una lavorazione all’ordine.');
+      if (!voci.length) return showError('Aggiungi almeno una lavorazione all\u2019ordine.');
       const ordineId  = document.getElementById('ordine-id').value || null;
       const esistente = ordineId ? await OrdiniService.findById(ordineId) : null;
 
@@ -249,19 +360,22 @@ document.addEventListener('DOMContentLoaded', () => {
         id:           ordineId,
         clienteId,
         biciId:       document.getElementById('ordine-bici-id').value || null,
-        stato:        esistente?.stato      || 'accettata',
+        stato:        document.getElementById('ordine-stato').value || 'accettata',
         dataIngresso: document.getElementById('ordine-data-ingresso').value
                       ? new Date(document.getElementById('ordine-data-ingresso').value).toISOString()
                       : new Date().toISOString(),
         dataUscita:   esistente?.dataUscita || null,
         note:         document.getElementById('ordine-note').value,
         pagato:       document.getElementById('ordine-pagato').checked,
+        acconto:      document.getElementById('ordine-acconto').value || 0,
+        foto:         UI.getOrdineFoto(),
       }, voci);
 
       const storicoModal     = document.getElementById('modal-storico');
       const storicoAperto    = !storicoModal.classList.contains('hidden');
       const storicoClienteId = storicoModal.dataset.clienteId;
 
+      _formDirty = false;
       UI.closeAllModals();
 
       if (storicoAperto && storicoClienteId) {
@@ -277,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('form-lavorazione').addEventListener('submit', async e => {
     e.preventDefault();
     const nome = document.getElementById('lavorazione-nome').value.trim();
-    if (!nome) return alert('Il nome è obbligatorio.');
+    if (!nome) return showError('Il nome è obbligatorio.');
     try {
       await LavorazioniService.salva({
         id:          document.getElementById('lavorazione-id').value || null,
@@ -285,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
         prezzo:      document.getElementById('lavorazione-prezzo').value,
         descrizione: document.getElementById('lavorazione-descrizione').value,
       });
+      _formDirty = false;
       UI.closeAllModals();
       await UI.renderCatalogo();
       showSuccess('✅ Lavorazione salvata');
@@ -295,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('form-aggiungi-bici').addEventListener('submit', async e => {
     e.preventDefault();
     const modello = document.getElementById('bici-modello').value.trim();
-    if (!modello) return alert('Il modello è obbligatorio.');
+    if (!modello) return showError('Il modello è obbligatorio.');
     try {
       const clienteId = document.getElementById('bici-cliente-id-hidden').value;
       await BiciService.salva({
@@ -309,6 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         seriale_ammortizzatore:document.getElementById('bici-ser-ammortizzatore').value,
         note:                  document.getElementById('bici-note').value,
       });
+      _formDirty = false;
       UI.closeAllModals();
       await UI.apriModalBiciCliente(clienteId);
       showSuccess('✅ Bici salvata');
@@ -316,6 +432,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── Render iniziale ───────────────────────────────────────────
+  // Dirty form — avvisa prima di chiudere se ci sono modifiche
+  let _formDirty = false;
+  document.querySelectorAll('#form-ordine input, #form-ordine textarea, #form-ordine select, #form-cliente input, #form-cliente textarea').forEach(el => {
+    el.addEventListener('input', () => { _formDirty = true; });
+    el.addEventListener('change', () => { _formDirty = true; });
+  });
+  const _origCloseAll = UI.closeAllModals;
+  UI.closeAllModals = () => {
+    if (_formDirty) {
+      const anyModalOpen = document.querySelector('.modal:not(.hidden)');
+      if (anyModalOpen && !confirm('Hai modifiche non salvate. Chiudere comunque?')) return;
+    }
+    _formDirty = false;
+    _origCloseAll();
+  };
+
   // Ripristina filtro ordini dalla sessione precedente
   const savedFilter = sessionStorage.getItem('ciclo-ordini-filtro') || 'tutti';
   document.getElementById('filter-ordini').value = savedFilter;

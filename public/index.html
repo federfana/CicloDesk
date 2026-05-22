@@ -13,6 +13,10 @@
       <img src="img/logo.svg" alt="Logo Cerica" class="header-logo" />
       <h1>CicloDesk</h1>
     </div>
+    <div class="header-search">
+      <input type="text" id="search-globale" placeholder="🔍 Cerca ovunque…" autocomplete="off" />
+      <div id="search-globale-results" class="global-search-results hidden"></div>
+    </div>
     <nav>
       <button class="nav-btn active" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="clienti">Clienti</button>
@@ -43,6 +47,15 @@
           <span class="stat-num" id="stat-num-out">0</span>
           <span class="stat-label">Consegnate oggi</span>
         </div>
+      </div>
+      <div id="dashboard-alerts" class="alerts-container"></div>
+      <div class="dashboard-actions">
+        <button id="btn-backup-db" class="btn btn-secondary">💾 Backup Database (.db)</button>
+        <button id="btn-backup-json" class="btn btn-secondary">📄 Export JSON</button>
+        <label class="btn btn-secondary" style="cursor:pointer">
+          📥 Importa JSON
+          <input type="file" id="btn-import-json" accept=".json" hidden />
+        </label>
       </div>
       <h3>🔧 Bici in officina</h3>
       <div id="dashboard-in-list" class="card-list"></div>
@@ -139,7 +152,6 @@
             <input type="hidden" id="ordine-cliente-id" />
           </label>
 
-          <datalist id="lavorazioni-list"></datalist>
           <label>Data Ingresso
             <input type="datetime-local" id="ordine-data-ingresso" />
           </label>
@@ -148,9 +160,21 @@
               <option value="">— Nessuna bici specifica —</option>
             </select>
           </label>
+          <label id="ordine-stato-wrap" class="hidden">Stato
+            <select id="ordine-stato">
+              <option value="accettata">📥 Accettata</option>
+              <option value="in_lavorazione">🔧 In lavorazione</option>
+              <option value="pronto">✅ Pronto al ritiro</option>
+              <option value="consegnata">📦 Consegnata</option>
+            </select>
+          </label>
           <label class="full-width">Lavori da eseguire
             <textarea id="ordine-note" rows="2" placeholder="Descrizione rapida del problema…"></textarea>
           </label>
+          <label class="full-width">📷 Foto (stato bici all'ingresso)
+            <input type="file" id="ordine-foto-input" accept="image/*" multiple />
+          </label>
+          <div id="ordine-foto-preview" class="foto-preview"></div>
         </div>
         <hr />
         <div class="lavorazioni-header">
@@ -179,6 +203,14 @@
           <input type="checkbox" id="ordine-pagato" />
           <span>Pagato</span>
         </label>
+        <div class="form-grid" style="margin-top:.5rem">
+          <label>Acconto / Caparra €
+            <input type="number" id="ordine-acconto" min="0" step="0.01" placeholder="0.00" />
+          </label>
+          <div class="acconto-info">
+            <span class="card-sub" id="ordine-resto-label"></span>
+          </div>
+        </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary modal-close">Annulla</button>
           <button type="submit" class="btn btn-primary">Salva Ordine</button>
