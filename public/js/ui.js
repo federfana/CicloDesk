@@ -464,7 +464,6 @@ const UI = (() => {
       inputCliente.value = display;
       hiddenCliente.value = id || '';
       suggestions.classList.add('hidden');
-      aggiornaBiciSelect(hiddenCliente.value || null, ordine?.biciId || null);
     }
 
     // Preseleziona cliente se necessario

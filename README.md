@@ -30,7 +30,7 @@
 
 | Componente | Versione minima | Note |
 |---|---|---|
-| **Node.js** | 18.x LTS o superiore | https://nodejs.org — **NON usare v21/v22/v24** |
+| **Node.js** | 22.x LTS o superiore | https://nodejs.org — versione **LTS** consigliata |
 | **npm** | incluso con Node.js | — |
 | **Sistema operativo** | Windows 10 / macOS 12 / Ubuntu 20.04 | — |
 | **Browser** | Chrome 90+ / Firefox 90+ / Safari 15+ / Edge 90+ | Su tutti i dispositivi |
@@ -39,7 +39,7 @@
 > ℹ️ Internet serve solo per la prima installazione di Node.js e delle dipendenze npm.
 > Il gestionale funziona completamente **offline** in rete locale.
 
-> ⚠️ Usare la versione **20.x LTS** di Node.js. Le versioni 21, 22 e 24 non sono compatibili con `better-sqlite3` e causano errori durante `npm install`.
+> ⚠️ Usare la versione **22.x LTS** di Node.js. Le versioni 20 e precedenti sono a fine vita (EOL) e non ricevono più aggiornamenti di sicurezza.
 
 ---
 
@@ -120,13 +120,13 @@ Ogni bici appartiene direttamente a un cliente (`clienteId`). Gli ordini collega
 
 ### Passo 1 — Installa Node.js
 
-1. Vai su **https://nodejs.org** e scarica la versione **LTS** (20.x)
+1. Vai su **https://nodejs.org** e scarica la versione **LTS** (22.x)
 2. Esegui il file e segui l'installazione con le opzioni predefinite
 3. **Riavvia il PC**
 
 Verifica nel terminale (usa il **Prompt dei comandi cmd**, non PowerShell):
 ```bash
-node --version   # deve mostrare v20.x.x
+node --version   # deve mostrare v22.x.x
 npm --version    # 10.x.x o superiore
 ```
 
@@ -1055,7 +1055,7 @@ Apri il browser, controlla che i dati esistenti siano intatti e che le nuove fun
 | `EADDRINUSE porta 3000` | Porta già in uso | Vedi comandi sotto |
 | Telefono non si connette | Rete diversa o firewall | Stessa Wi-Fi + apri porta 3000 nel firewall Windows |
 | `Cannot find module` | Dipendenze mancanti | Esegui `npm install` |
-| `npm error code 1` con better-sqlite3 | Node.js v21/22/24 | Installa Node.js **v20 LTS** |
+| `npm error code 1` con better-sqlite3 | Node.js versione non supportata | Installa Node.js **v22 LTS** |
 | "l'esecuzione di script è disabilitata" | PowerShell blocca gli script | Usa il **Prompt dei comandi (cmd)** |
 | Select bici vuoto nel form ordine | Nessuna bici registrata | Aggiungi bici dalla scheda cliente (🚲 Bici) |
 | Badge tipo bici non appare | Campo `tipo` vuoto nel DB | Modifica la bici e seleziona il tipo |
