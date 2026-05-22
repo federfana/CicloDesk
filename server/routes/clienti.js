@@ -5,7 +5,7 @@ const { newId }   = require('../utils');
 
 // GET /api/clienti
 router.get('/', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM clienti ORDER BY nome ASC').all();
+  const rows = db.prepare('SELECT * FROM clienti ORDER BY cognome ASC, nome ASC').all();
   res.json(rows);
 });
 
