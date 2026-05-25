@@ -34,10 +34,10 @@ const UI = (() => {
 
   // ── Badge stato ordine ────────────────────────────────────────
   const STATO_CFG = {
-    accettata:      { cls: 'badge-accettata',      label: '📥 Accettata'        },
-    in_lavorazione: { cls: 'badge-in-lavorazione', label: '🔧 In lavorazione'   },
-    pronto:         { cls: 'badge-pronto',         label: '✅ Pronto al ritiro'  },
-    consegnata:     { cls: 'badge-consegnata',     label: '📦 Consegnata'        },
+    accettata: { cls: 'badge-accettata', label: '📥 Accettata' },
+    in_lavorazione: { cls: 'badge-in-lavorazione', label: '🔧 In lavorazione' },
+    pronto: { cls: 'badge-pronto', label: '✅ Pronto al ritiro' },
+    consegnata: { cls: 'badge-consegnata', label: '📦 Consegnata' },
   };
 
   function aggiornaColorStato() {
@@ -54,9 +54,9 @@ const UI = (() => {
   // Pulsante avanza (non mostrato se già consegnata)
   function btnAvanza(o) {
     const labels = {
-      accettata:      '🔧 Inizia',
+      accettata: '🔧 Inizia',
       in_lavorazione: '✅ Pronto',
-      pronto:         '📦 Consegna',
+      pronto: '📦 Consegna',
     };
     if (!labels[o.stato]) return '';
     return `<button class="btn btn-sm btn-primary" data-action="avanza-ordine" data-id="${o.id}">${labels[o.stato]}</button>`;
@@ -64,10 +64,10 @@ const UI = (() => {
 
   // Tipo bici: etichetta leggibile
   const TIPO_CFG = {
-    strada: { label: '🚴 Strada',    cls: 'tag-tipo tag-strada' },
-    mtb:    { label: '🏔️ MTB',      cls: 'tag-tipo tag-mtb'    },
-    emtb:   { label: '⚡🏔️ E-MTB',  cls: 'tag-tipo tag-emtb'   },
-    ebike:  { label: '⚡ E-Bike',    cls: 'tag-tipo tag-ebike'  },
+    strada: { label: '🚴 Strada', cls: 'tag-tipo tag-strada' },
+    mtb: { label: '🏔️ MTB', cls: 'tag-tipo tag-mtb' },
+    emtb: { label: '⚡🏔️ E-MTB', cls: 'tag-tipo tag-emtb' },
+    ebike: { label: '⚡ E-Bike', cls: 'tag-tipo tag-ebike' },
     monopattino_e: { label: '⚡🛴 Monopattino Elett.', cls: 'tag-tipo tag-monopattino-e' },
   };
   function tagTipo(tipo) {
@@ -86,17 +86,17 @@ const UI = (() => {
     ]);
 
     const inOfficina = tutti.filter(o => o.stato !== 'consegnata');
-    const pronti     = tutti.filter(o => o.stato === 'pronto');
-    const oggi       = new Date().toDateString();
-    const consOggi   = tutti.filter(o =>
+    const pronti = tutti.filter(o => o.stato === 'pronto');
+    const oggi = new Date().toDateString();
+    const consOggi = tutti.filter(o =>
       o.stato === 'consegnata' && o.dataUscita &&
       new Date(o.dataUscita).toDateString() === oggi
     );
 
     document.getElementById('stat-num-clienti').textContent = clienti.length;
-    document.getElementById('stat-num-in').textContent      = inOfficina.length;
-    document.getElementById('stat-num-pronto').textContent  = pronti.length;
-    document.getElementById('stat-num-out').textContent     = consOggi.length;
+    document.getElementById('stat-num-in').textContent = inOfficina.length;
+    document.getElementById('stat-num-pronto').textContent = pronti.length;
+    document.getElementById('stat-num-out').textContent = consOggi.length;
 
     // ── Notifiche: ordini fermi da >48h ─────────────────────────
     const alertsContainer = document.getElementById('dashboard-alerts');
@@ -114,12 +114,12 @@ const UI = (() => {
         <div class="alert alert-warning">
           <strong>⚠️ ${fermi.length} ordin${fermi.length === 1 ? 'e fermo' : 'i fermi'} da più di 48h:</strong>
           <ul>${fermi.map(o => {
-            const c = clientiMap[o.clienteId];
-            const nome = c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto';
-            const ore = Math.round((adesso - new Date(o.dataIngresso).getTime()) / (1000*60*60));
-            const gg = Math.floor(ore / 24);
-            return `<li>${esc(nome)} — ${esc(o.biciNome) || 'ordine'} (${gg}g ${ore%24}h) <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">Apri</button></li>`;
-          }).join('')}</ul>
+        const c = clientiMap[o.clienteId];
+        const nome = c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto';
+        const ore = Math.round((adesso - new Date(o.dataIngresso).getTime()) / (1000 * 60 * 60));
+        const gg = Math.floor(ore / 24);
+        return `<li>${esc(nome)} — ${esc(o.biciNome) || 'ordine'} (${gg}g ${ore % 24}h) <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">Apri</button></li>`;
+      }).join('')}</ul>
         </div>`;
       // Beep notification (#13)
       beepNotifica();
@@ -127,7 +127,7 @@ const UI = (() => {
       alertsContainer.innerHTML = '';
     }
 
-    const container  = document.getElementById('dashboard-in-list');
+    const container = document.getElementById('dashboard-in-list');
 
     if (!inOfficina.length) {
       container.innerHTML = emptyState('Nessuna bici in officina al momento.', 'bici');
@@ -174,8 +174,8 @@ const UI = (() => {
     clienti.sort((a, b) => (a.cognome || '').localeCompare(b.cognome || '') || (a.nome || '').localeCompare(b.nome || ''));
 
     container.innerHTML = clienti.map(c => {
-      const ordini      = tuttiOrdini.filter(o => o.clienteId === c.id);
-      const attivi      = ordini.filter(o => o.stato !== 'consegnata').length;
+      const ordini = tuttiOrdini.filter(o => o.clienteId === c.id);
+      const attivi = ordini.filter(o => o.stato !== 'consegnata').length;
       const totaleSpeso = OrdiniService.calcolaIncasso(ordini.filter(o => o.stato === 'consegnata'));
       return `
         <div class="card">
@@ -244,7 +244,7 @@ const UI = (() => {
           (c?.nome || '').toLowerCase().includes(q) ||
           (c?.cognome || '').toLowerCase().includes(q) ||
           (o.biciNome || '').toLowerCase().includes(q) ||
-          (o.note  || '').toLowerCase().includes(q) ||
+          (o.note || '').toLowerCase().includes(q) ||
           o.voci.some(v =>
             v.nome.toLowerCase().includes(q) ||
             (v.note || '').toLowerCase().includes(q)
@@ -271,7 +271,7 @@ const UI = (() => {
     }
 
     container.innerHTML = ordini.map(o => {
-      const c        = clientiMap[o.clienteId];
+      const c = clientiMap[o.clienteId];
       const vociHtml = o.voci.map(v =>
         `<span class="tag">${esc(v.nome)} — ${fmt(v.prezzo)}${v.note ? ` (${esc(v.note)})` : ''}</span>`
       ).join('');
@@ -297,11 +297,11 @@ const UI = (() => {
             <div class="card-actions">
               ${btnAvanza(o)}
               ${o.pagato
-                ? `<button class="btn btn-sm btn-secondary" data-action="toggle-pagato" data-id="${o.id}">Annulla pagato</button>`
-                : `<button class="btn btn-sm btn-primary" data-action="toggle-pagato" data-id="${o.id}">Segna pagato</button>`}
+          ? `<button class="btn btn-sm btn-secondary" data-action="toggle-pagato" data-id="${o.id}">Annulla pagato</button>`
+          : `<button class="btn btn-sm btn-primary" data-action="toggle-pagato" data-id="${o.id}">Segna pagato</button>`}
               ${o.stato === 'consegnata'
-                ? `<button class="btn btn-sm btn-secondary" data-action="riapri-ordine" data-id="${o.id}">↩ Riapri</button>`
-                : ''}
+          ? `<button class="btn btn-sm btn-secondary" data-action="riapri-ordine" data-id="${o.id}">↩ Riapri</button>`
+          : ''}
               <button class="btn btn-sm btn-secondary" data-action="print-ordine" data-id="${o.id}" title="Stampa / PDF" aria-label="Stampa">🖨️</button>
               <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}" aria-label="Modifica">✏</button>
               <button class="btn btn-sm btn-danger"    data-action="del-ordine"  data-id="${o.id}" aria-label="Elimina">🗑</button>
@@ -314,7 +314,7 @@ const UI = (() => {
   // ── Catalogo ──────────────────────────────────────────────────
   async function renderCatalogo() {
     const lavorazioni = await LavorazioniService.getAll();
-    const container   = document.getElementById('catalogo-list');
+    const container = document.getElementById('catalogo-list');
 
     if (!lavorazioni.length) {
       container.innerHTML = emptyState('Nessuna lavorazione nel catalogo.', 'generic');
@@ -337,7 +337,7 @@ const UI = (() => {
   }
 
   // ── Storico Cliente ───────────────────────────────────────────
-  let _storicoOrdini    = [];
+  let _storicoOrdini = [];
   let _storicoClienteId = null;
 
   async function apriModalStorico(clienteId) {
@@ -348,7 +348,7 @@ const UI = (() => {
 
     document.getElementById('modal-storico').dataset.clienteId = clienteId;
 
-    _storicoOrdini    = tuttiOrdini.sort((a, b) =>
+    _storicoOrdini = tuttiOrdini.sort((a, b) =>
       new Date(b.dataIngresso) - new Date(a.dataIngresso)
     );
     _storicoClienteId = clienteId;
@@ -357,14 +357,14 @@ const UI = (() => {
     document.getElementById('storico-cliente-info').textContent =
       [cliente.telefono, cliente.email].filter(Boolean).join('  ·  ');
 
-    const consegnati  = _storicoOrdini.filter(o => o.stato === 'consegnata');
+    const consegnati = _storicoOrdini.filter(o => o.stato === 'consegnata');
     const totaleSpeso = OrdiniService.calcolaIncasso(consegnati);
-    const media       = consegnati.length ? totaleSpeso / consegnati.length : 0;
+    const media = consegnati.length ? totaleSpeso / consegnati.length : 0;
 
     document.getElementById('storico-stat-ordini').textContent = _storicoOrdini.length;
     document.getElementById('storico-stat-chiusi').textContent = consegnati.length;
-    document.getElementById('storico-stat-speso').textContent  = fmt(totaleSpeso);
-    document.getElementById('storico-stat-media').textContent  = fmt(media);
+    document.getElementById('storico-stat-speso').textContent = fmt(totaleSpeso);
+    document.getElementById('storico-stat-media').textContent = fmt(media);
     document.getElementById('storico-stat-ultima').textContent =
       _storicoOrdini.length ? fmtDate(_storicoOrdini[0].dataIngresso) : '—';
 
@@ -391,8 +391,8 @@ const UI = (() => {
             <div>
               <span class="storico-ordine-data">📅 ${fmtDate(o.dataIngresso)}</span>
               ${o.dataUscita
-                ? `<span class="storico-ordine-uscita">→ ${fmtDate(o.dataUscita)}</span>`
-                : ''}
+          ? `<span class="storico-ordine-uscita">→ ${fmtDate(o.dataUscita)}</span>`
+          : ''}
               ${o.biciNome ? `<span class="card-sub" style="margin-left:.4rem">🚲 ${esc(o.biciNome)}</span>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:.6rem;">
@@ -412,7 +412,7 @@ const UI = (() => {
 
   function filtraStorico(query) {
     if (!query.trim()) { renderStoricoLista(_storicoOrdini); return; }
-    const q        = query.toLowerCase().trim();
+    const q = query.toLowerCase().trim();
     const filtrati = _storicoOrdini.filter(o =>
       (o.note || '').toLowerCase().includes(q) ||
       (o.biciNome || '').toLowerCase().includes(q) ||
@@ -432,7 +432,7 @@ const UI = (() => {
       BiciService.getByCliente(clienteId),
     ]);
     document.getElementById('bici-cliente-nome').textContent = [cliente.nome, cliente.cognome].filter(Boolean).join(' ');
-    document.getElementById('bici-cliente-id-hidden').value  = clienteId;
+    document.getElementById('bici-cliente-id-hidden').value = clienteId;
     renderBiciList(bici);
     openModal('modal-bici-cliente');
   }
@@ -468,15 +468,15 @@ const UI = (() => {
   async function apriModalAggiungiBici(clienteId, biciId = null) {
     const b = biciId ? await BiciService.findById(biciId) : null;
     document.getElementById('modal-aggiungi-bici-title').textContent = b ? '✏ Modifica Bici' : '➕ Aggiungi Bici';
-    document.getElementById('bici-id').value                         = b?.id      || '';
-    document.getElementById('bici-cliente-id-hidden').value          = clienteId;
-    document.getElementById('bici-marca').value                      = b?.marca   || '';
-    document.getElementById('bici-modello').value                    = b?.modello || '';
-    document.getElementById('bici-tipo').value                       = b?.tipo    || 'strada';
-    document.getElementById('bici-colore').value                     = b?.colore  || '';
-    document.getElementById('bici-ser-forcella').value               = b?.seriale_forcella       || '';
-    document.getElementById('bici-ser-ammortizzatore').value         = b?.seriale_ammortizzatore || '';
-    document.getElementById('bici-note').value                       = b?.note    || '';
+    document.getElementById('bici-id').value = b?.id || '';
+    document.getElementById('bici-cliente-id-hidden').value = clienteId;
+    document.getElementById('bici-marca').value = b?.marca || '';
+    document.getElementById('bici-modello').value = b?.modello || '';
+    document.getElementById('bici-tipo').value = b?.tipo || 'strada';
+    document.getElementById('bici-colore').value = b?.colore || '';
+    document.getElementById('bici-ser-forcella').value = b?.seriale_forcella || '';
+    document.getElementById('bici-ser-ammortizzatore').value = b?.seriale_ammortizzatore || '';
+    document.getElementById('bici-note').value = b?.note || '';
     openModal('modal-aggiungi-bici');
     document.getElementById('bici-marca').focus();
   }
@@ -488,8 +488,8 @@ const UI = (() => {
     if (!clienteId) return;
     const bici = await BiciService.getByCliente(clienteId);
     bici.forEach(b => {
-      const opt       = document.createElement('option');
-      opt.value       = b.id;
+      const opt = document.createElement('option');
+      opt.value = b.id;
       opt.textContent = [b.marca, b.modello].filter(Boolean).join(' ');
       if (b.id === biciIdSelezionata) opt.selected = true;
       sel.appendChild(opt);
@@ -504,10 +504,10 @@ const UI = (() => {
     ]);
 
     document.getElementById('modal-ordine-title').textContent = ordine ? 'Modifica Ordine' : 'Nuovo Ordine';
-    document.getElementById('ordine-id').value   = ordine?.id   || '';
+    document.getElementById('ordine-id').value = ordine?.id || '';
     document.getElementById('ordine-note').value = ordine?.note || '';
     document.getElementById('ordine-pagato').checked = Boolean(ordine?.pagato);
-    document.getElementById('ordine-acconto').value  = ordine?.acconto ? ordine.acconto.toFixed(2) : '';
+    document.getElementById('ordine-acconto').value = ordine?.acconto ? ordine.acconto.toFixed(2) : '';
 
     // Stato (visibile solo in modifica)
     const statoWrap = document.getElementById('ordine-stato-wrap');
@@ -565,20 +565,20 @@ const UI = (() => {
       suggestions.classList.toggle('hidden', matches.length === 0);
     }
 
-    const originalClienteId      = ordine?.clienteId || null;
-    let   originalClienteDisplay  = '';
+    const originalClienteId = ordine?.clienteId || null;
+    let originalClienteDisplay = '';
 
     function selectCliente(display, id, skipConfirm = false) {
       if (!skipConfirm && originalClienteId && id && id !== originalClienteId) {
         if (!confirm('Stai cambiando il cliente dell\'ordine. Sei sicuro?')) {
           // Ripristina valore originale
-          inputCliente.value  = originalClienteDisplay;
+          inputCliente.value = originalClienteDisplay;
           hiddenCliente.value = originalClienteId;
           suggestions.classList.add('hidden');
           return;
         }
       }
-      inputCliente.value  = display;
+      inputCliente.value = display;
       hiddenCliente.value = id || '';
       suggestions.classList.add('hidden');
       if (!skipConfirm) aggiornaBiciSelect(id || null, ordine?.biciId || null);
@@ -597,12 +597,12 @@ const UI = (() => {
     }
 
     inputCliente.oninput = function () {
-      const val     = this.value;
-      const newId   = displayMap[val] || '';
+      const val = this.value;
+      const newId = displayMap[val] || '';
       // Se in modifica e il testo corrisponde a un cliente diverso, chiedi conferma
       if (originalClienteId && newId && newId !== originalClienteId) {
         if (!confirm('Stai cambiando il cliente dell\'ordine. Sei sicuro?')) {
-          inputCliente.value  = originalClienteDisplay;
+          inputCliente.value = originalClienteDisplay;
           hiddenCliente.value = originalClienteId;
           suggestions.classList.add('hidden');
           aggiornaBiciSelect(originalClienteId, ordine?.biciId || null);
@@ -649,14 +649,14 @@ const UI = (() => {
 
   function aggiungiRigaVoce(voce = {}) {
     const tbody = document.getElementById('tbody-voci');
-    const tr    = document.createElement('tr');
+    const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="position:relative">
         <input type="text" class="inp-lavorazione" autocomplete="off" placeholder="— Scegli —" value="${voce.nome || ''}" />
         <input type="hidden" class="hid-lavorazione-id" value="${voce.lavorazioneId || ''}" />
         <div class="lav-suggestions hidden"></div>
       </td>
-      <td><input type="text"   class="inp-note-voce"   placeholder="Note…" value="${voce.note   || ''}" /></td>
+      <td><input type="text"   class="inp-note-voce"   placeholder="Note…" value="${voce.note || ''}" /></td>
       <td><input type="number" class="inp-prezzo-voce" step="0.10" min="0"  value="${parseFloat(voce.prezzo || 0).toFixed(2)}" style="width:90px" /></td>
       <td><button type="button" class="btn btn-sm btn-danger btn-rimuovi-voce">✕</button></td>
     `;
@@ -734,7 +734,7 @@ const UI = (() => {
     container.innerHTML = _ordineFoto.map((src, i) => {
       if (typeof src !== 'string' || !src.startsWith('data:image/')) return '';
       return `<div class="foto-thumb">
-        <img src="${src}" alt="Foto ${i+1}" />
+        <img src="${src}" alt="Foto ${i + 1}" />
         <button type="button" class="btn-foto-remove" data-foto-idx="${i}" aria-label="Rimuovi foto">✕</button>
       </div>`;
     }).join('');
@@ -765,9 +765,9 @@ const UI = (() => {
     const voci = [];
     let righeInvalide = 0;
     document.querySelectorAll('#tbody-voci tr').forEach(tr => {
-      const hid   = tr.querySelector('.hid-lavorazione-id');
+      const hid = tr.querySelector('.hid-lavorazione-id');
       const lavId = hid ? hid.value : '';
-      const nome  = tr.querySelector('.inp-lavorazione')?.value || '';
+      const nome = tr.querySelector('.inp-lavorazione')?.value || '';
       if (!lavId) {
         if (nome.trim()) righeInvalide++;
         return;
@@ -775,8 +775,8 @@ const UI = (() => {
       voci.push({
         lavorazioneId: lavId,
         nome,
-        note:          tr.querySelector('.inp-note-voce')?.value    || '',
-        prezzo:        parseFloat(tr.querySelector('.inp-prezzo-voce')?.value) || 0,
+        note: tr.querySelector('.inp-note-voce')?.value || '',
+        prezzo: parseFloat(tr.querySelector('.inp-prezzo-voce')?.value) || 0,
       });
     });
     if (righeInvalide > 0) {
@@ -789,12 +789,12 @@ const UI = (() => {
   async function apriModalCliente(clienteId = null) {
     const c = clienteId ? await ClientiService.findById(clienteId) : null;
     document.getElementById('modal-cliente-title').textContent = c ? 'Modifica Cliente' : 'Nuovo Cliente';
-    document.getElementById('cliente-id').value       = c?.id       || '';
-    document.getElementById('cliente-nome').value     = c?.nome     || '';
-    document.getElementById('cliente-cognome').value   = c?.cognome  || '';
+    document.getElementById('cliente-id').value = c?.id || '';
+    document.getElementById('cliente-nome').value = c?.nome || '';
+    document.getElementById('cliente-cognome').value = c?.cognome || '';
     document.getElementById('cliente-telefono').value = c?.telefono || '';
-    document.getElementById('cliente-email').value    = c?.email    || '';
-    document.getElementById('cliente-note').value     = c?.note     || '';
+    document.getElementById('cliente-email').value = c?.email || '';
+    document.getElementById('cliente-note').value = c?.note || '';
     openModal('modal-cliente');
     document.getElementById('cliente-nome').focus();
   }
@@ -803,9 +803,9 @@ const UI = (() => {
   async function apriModalLavorazione(lavId = null) {
     const l = lavId ? await LavorazioniService.findById(lavId) : null;
     document.getElementById('modal-lavorazione-title').textContent = l ? 'Modifica Lavorazione' : 'Nuova Lavorazione';
-    document.getElementById('lavorazione-id').value          = l?.id          || '';
-    document.getElementById('lavorazione-nome').value        = l?.nome        || '';
-    document.getElementById('lavorazione-prezzo').value      = l ? l.prezzo.toFixed(2) : '';
+    document.getElementById('lavorazione-id').value = l?.id || '';
+    document.getElementById('lavorazione-nome').value = l?.nome || '';
+    document.getElementById('lavorazione-prezzo').value = l ? l.prezzo.toFixed(2) : '';
     document.getElementById('lavorazione-descrizione').value = l?.descrizione || '';
     openModal('modal-lavorazione');
     document.getElementById('lavorazione-nome').focus();
@@ -835,9 +835,9 @@ const UI = (() => {
   // ── Utility ───────────────────────────────────────────────────
   function toDatetimeLocal(iso) {
     if (!iso) return '';
-    const d   = new Date(iso);
+    const d = new Date(iso);
     const pad = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
   // ── Stampa ordine ─────────────────────────────────────────────
@@ -846,11 +846,11 @@ const UI = (() => {
       OrdiniService.findById(id),
       ClientiService.getAll(),
     ]);
-    const c           = clienti.find(x => x.id === ordine.clienteId);
+    const c = clienti.find(x => x.id === ordine.clienteId);
     const nomeCliente = c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto';
-    const statoLabel  = { accettata: 'Accettata', in_lavorazione: 'In lavorazione', pronto: 'Pronto al ritiro', consegnata: 'Consegnata' }[ordine.stato] || ordine.stato;
-    const fmtEur      = n => '€\u00a0' + (n || 0).toFixed(2).replace('.', ',');
-    const fmtDt       = iso => iso ? new Date(iso).toLocaleString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+    const statoLabel = { accettata: 'Accettata', in_lavorazione: 'In lavorazione', pronto: 'Pronto al ritiro', consegnata: 'Consegnata' }[ordine.stato] || ordine.stato;
+    const fmtEur = n => '€\u00a0' + (n || 0).toFixed(2).replace('.', ',');
+    const fmtDt = iso => iso ? new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 
     const vociRows = ordine.voci.map(v =>
       `<tr><td>${esc(v.nome)}</td><td>${esc(v.note)}</td><td class="num">${fmtEur(v.prezzo)}</td></tr>`
@@ -879,7 +879,7 @@ const UI = (() => {
   @media print{body{padding:12px}}
 </style></head><body>
 <h1>🚲 Cerica Bikelab — Ordine di lavoro</h1>
-<div class="sub">Stampato il ${new Date().toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric' })}</div>
+<div class="sub">Stampato il ${new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
 <div class="grid">
   <div class="field"><div class="lbl">Cliente</div><div class="val">${esc(nomeCliente)}${c?.telefono ? ' &nbsp;·&nbsp; ' + esc(c.telefono) : ''}</div></div>
   ${ordine.biciNome ? `<div class="field"><div class="lbl">Bici</div><div class="val">🚲 ${esc(ordine.biciNome)}</div></div>` : '<div></div>'}
@@ -974,12 +974,12 @@ const UI = (() => {
       <div class="kanban-col" data-stato="${stato}">
         <div class="kanban-col-title">${statiLabel[stato]} (${allByStato[stato].length})</div>
         ${allByStato[stato].map(o => {
-          const c = clientiMap[o.clienteId];
-          return `<div class="kanban-card" draggable="true" data-id="${o.id}">
+      const c = clientiMap[o.clienteId];
+      return `<div class="kanban-card" draggable="true" data-id="${o.id}">
             <div class="kanban-card-nome">${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : '?')}</div>
             <div class="kanban-card-sub">${esc(o.biciNome) || '—'} · ${fmt(o.totale)}</div>
           </div>`;
-        }).join('')}
+    }).join('')}
       </div>
     `).join('');
 
@@ -990,6 +990,9 @@ const UI = (() => {
         card.classList.add('dragging');
       });
       card.addEventListener('dragend', () => card.classList.remove('dragging'));
+      card.addEventListener('click', () => {
+        UI.apriModalOrdine(card.dataset.id);
+      });
     });
 
     container.querySelectorAll('.kanban-col').forEach(col => {

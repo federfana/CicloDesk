@@ -1,5 +1,7 @@
 /* ── Utility ──────────────────────────────────────────────── */
-.hidden { display: none !important; }
+.hidden {
+    display: none !important;
+}
 
 /* ── Reset & Base ─────────────────────────────────────────── */
 *,
@@ -326,10 +328,30 @@ main {
     font-weight: 600;
     border-width: 2px;
 }
-#ordine-stato.stato-accettata      { color: #0369a1; border-color: #0369a1; background: #e0f2fe; }
-#ordine-stato.stato-in_lavorazione { color: #d97706; border-color: #d97706; background: #fef3c7; }
-#ordine-stato.stato-pronto         { color: #16a34a; border-color: #16a34a; background: #dcfce7; }
-#ordine-stato.stato-consegnata     { color: #64748b; border-color: #64748b; background: #f1f5f9; }
+
+#ordine-stato.stato-accettata {
+    color: #0369a1;
+    border-color: #0369a1;
+    background: #e0f2fe;
+}
+
+#ordine-stato.stato-in_lavorazione {
+    color: #d97706;
+    border-color: #d97706;
+    background: #fef3c7;
+}
+
+#ordine-stato.stato-pronto {
+    color: #16a34a;
+    border-color: #16a34a;
+    background: #dcfce7;
+}
+
+#ordine-stato.stato-consegnata {
+    color: #64748b;
+    border-color: #64748b;
+    background: #f1f5f9;
+}
 
 .badge-pagato {
     background: #dcfce7;
@@ -387,9 +409,9 @@ main {
     color: #075985;
 }
 
-.tag-monopattino-e { 
-    background: #ede9fe; 
-    color: #6d28d9; 
+.tag-monopattino-e {
+    background: #ede9fe;
+    color: #6d28d9;
 }
 
 /* ── Search & Filter ──────────────────────────────────────── */
@@ -486,7 +508,8 @@ label {
     color: var(--text);
 }
 
-.clienti-suggestions, .lav-suggestions {
+.clienti-suggestions,
+.lav-suggestions {
     position: absolute;
     top: calc(100% + 0.4rem);
     left: 0;
@@ -495,21 +518,27 @@ label {
     background: #fff;
     border: 1px solid var(--border);
     border-radius: 10px;
-    box-shadow: 0 10px 24px rgba(0,0,0,.12);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .12);
     z-index: 999;
     max-height: 240px;
     overflow-y: auto;
 }
-.clienti-suggestions.hidden, .lav-suggestions.hidden {
+
+.clienti-suggestions.hidden,
+.lav-suggestions.hidden {
     display: none;
 }
-.clienti-suggestion, .lav-suggestion {
+
+.clienti-suggestion,
+.lav-suggestion {
     padding: .65rem .85rem;
     cursor: pointer;
     font-size: .95rem;
     color: var(--text);
 }
-.clienti-suggestion:hover, .lav-suggestion:hover {
+
+.clienti-suggestion:hover,
+.lav-suggestion:hover {
     background: var(--primary);
     color: #fff;
 }
@@ -829,7 +858,7 @@ h3 {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
     z-index: 1000;
     max-height: 360px;
     overflow-y: auto;
@@ -964,14 +993,16 @@ h3 {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(255,255,255,.5);
+    background: rgba(255, 255, 255, .5);
     z-index: 10000;
     align-items: center;
     justify-content: center;
 }
+
 #loading-overlay.visible {
     display: flex;
 }
+
 .spinner {
     width: 36px;
     height: 36px;
@@ -980,22 +1011,42 @@ h3 {
     border-radius: 50%;
     animation: spin .7s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
 
 /* ── Modal Animations (#6) ────────────────────────────────── */
 .modal:not(.hidden) .modal-box {
     animation: modalIn .25s ease-out;
 }
+
 @keyframes modalIn {
-    from { opacity: 0; transform: translateY(20px) scale(.97); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
+
 .overlay:not(.hidden) {
     animation: fadeIn .2s ease-out;
 }
+
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 /* ── Responsive Cards Tablet (#10) ────────────────────────── */
@@ -1006,6 +1057,7 @@ h3 {
         gap: .75rem;
     }
 }
+
 @media (min-width: 1200px) {
     #catalogo-list {
         display: grid;
@@ -1022,7 +1074,10 @@ h3 {
     font-size: .82rem;
     color: var(--muted);
 }
-#breadcrumb .bc-icon { margin-right: .3rem; }
+
+#breadcrumb .bc-icon {
+    margin-right: .3rem;
+}
 
 /* ── Nav Badges (#8) ──────────────────────────────────────── */
 .nav-badge {
@@ -1040,8 +1095,9 @@ h3 {
     margin-left: .35rem;
     vertical-align: middle;
 }
+
 .nav-btn.active .nav-badge {
-    background: rgba(255,255,255,.25);
+    background: rgba(255, 255, 255, .25);
 }
 
 /* ── Empty State Illustrato (#7) ──────────────────────────── */
@@ -1051,6 +1107,7 @@ h3 {
     color: var(--muted);
     font-size: .95rem;
 }
+
 .empty-state svg {
     display: block;
     margin: 0 auto 1rem;
@@ -1080,16 +1137,19 @@ h3 {
     gap: .75rem;
     min-height: 300px;
 }
+
 @media (max-width: 900px) {
     .kanban-board {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
 @media (max-width: 520px) {
     .kanban-board {
         grid-template-columns: 1fr;
     }
 }
+
 .kanban-col {
     background: var(--bg);
     border-radius: var(--radius);
@@ -1097,10 +1157,23 @@ h3 {
     min-height: 200px;
     border-top: 3px solid var(--border);
 }
-.kanban-col[data-stato="accettata"]      { border-top-color: #0ea5e9; }
-.kanban-col[data-stato="in_lavorazione"] { border-top-color: var(--warning); }
-.kanban-col[data-stato="pronto"]         { border-top-color: var(--success); }
-.kanban-col[data-stato="consegnata"]     { border-top-color: #cbd5e1; }
+
+.kanban-col[data-stato="accettata"] {
+    border-top-color: #0ea5e9;
+}
+
+.kanban-col[data-stato="in_lavorazione"] {
+    border-top-color: var(--warning);
+}
+
+.kanban-col[data-stato="pronto"] {
+    border-top-color: var(--success);
+}
+
+.kanban-col[data-stato="consegnata"] {
+    border-top-color: #cbd5e1;
+}
+
 .kanban-col-title {
     font-size: .82rem;
     font-weight: 700;
@@ -1109,6 +1182,7 @@ h3 {
     margin-bottom: .5rem;
     color: var(--muted);
 }
+
 .kanban-card {
     background: var(--surface);
     border-radius: 8px;
@@ -1119,17 +1193,30 @@ h3 {
     font-size: .85rem;
     transition: box-shadow .15s, transform .15s;
 }
-.kanban-card:active { cursor: grabbing; }
+
+.kanban-card:active {
+    cursor: grabbing;
+}
+
 .kanban-card.dragging {
     opacity: .5;
     transform: rotate(2deg);
 }
+
 .kanban-col.drag-over {
     background: #e0f2fe;
     box-shadow: inset 0 0 0 2px #0ea5e9;
 }
-.kanban-card-nome { font-weight: 600; margin-bottom: .2rem; }
-.kanban-card-sub  { color: var(--muted); font-size: .78rem; }
+
+.kanban-card-nome {
+    font-weight: 600;
+    margin-bottom: .2rem;
+}
+
+.kanban-card-sub {
+    color: var(--muted);
+    font-size: .78rem;
+}
 
 /* ── Kanban / List Toggle ─────────────────────────────────── */
 .view-toggle {
@@ -1140,6 +1227,7 @@ h3 {
     overflow: hidden;
     margin-left: .5rem;
 }
+
 .view-toggle button {
     border: none;
     background: transparent;
@@ -1149,6 +1237,7 @@ h3 {
     color: var(--muted);
     transition: background .15s, color .15s;
 }
+
 .view-toggle button.active {
     background: var(--primary);
     color: #fff;
@@ -1163,18 +1252,21 @@ h3 {
     align-items: center;
     font-size: .85rem;
 }
+
 .filter-bar-advanced label {
     flex-direction: row;
     align-items: center;
     gap: .3rem;
     font-size: .85rem;
 }
+
 .filter-bar-advanced input[type="date"] {
     padding: .3rem .5rem;
     border: 1px solid var(--border);
     border-radius: 6px;
     font-size: .85rem;
 }
+
 .filter-bar-advanced select {
     padding: .3rem .5rem;
     border: 1px solid var(--border);
@@ -1193,53 +1285,309 @@ body.dark {
     --primary-h: #93c5fd;
     --shadow: 0 2px 8px rgba(0, 0, 0, .3);
 }
+
 body.dark header {
     background: #1e293b;
     border-bottom-color: #334155;
 }
-body.dark header h1 { color: #e2e8f0; border-left-color: #475569; }
-body.dark input, body.dark select, body.dark textarea {
+
+body.dark header h1 {
+    color: #e2e8f0;
+    border-left-color: #475569;
+}
+
+body.dark input,
+body.dark select,
+body.dark textarea {
     background: #0f172a;
     color: #e2e8f0;
     border-color: #475569;
 }
+
 body.dark .modal-box {
     background: #1e293b;
     border-top-color: #60a5fa;
 }
+
 body.dark .nav-btn {
     border-color: #475569;
     color: #94a3b8;
 }
+
 body.dark .nav-btn:hover {
     background: #334155;
     color: #e2e8f0;
 }
+
 body.dark .nav-btn.active {
     background: #60a5fa;
     border-color: #60a5fa;
     color: #0f172a;
 }
+
 body.dark .card {
     background: #1e293b;
 }
-body.dark .kanban-col { background: #1e293b; }
-body.dark .kanban-card { background: #334155; }
-body.dark .kanban-col.drag-over { background: #1e3a5f; box-shadow: inset 0 0 0 2px #60a5fa; }
-body.dark .storico-ordine-card { background: #1e293b; }
-body.dark .storico-stat { background: #1e293b; }
-body.dark .tag { background: #334155; border-color: #475569; color: #e2e8f0; }
-body.dark #loading-overlay { background: rgba(15,23,42,.6); }
-body.dark .clienti-suggestions, body.dark .lav-suggestions {
-    background: #1e293b; border-color: #475569;
+
+body.dark .kanban-col {
+    background: #1e293b;
 }
-body.dark .clienti-suggestion:hover, body.dark .lav-suggestion:hover {
-    background: #60a5fa; color: #0f172a;
+
+body.dark .kanban-card {
+    background: #334155;
 }
-body.dark .global-search-results { background: #1e293b; border-color: #475569; }
-body.dark .global-search-item:hover { background: #334155; }
-body.dark .alert-warning { background: #451a03; border-color: #d97706; color: #fde68a; }
-body.dark .header-search input { background: #0f172a; color: #e2e8f0; border-color: #475569; }
+
+body.dark .kanban-col.drag-over {
+    background: #1e3a5f;
+    box-shadow: inset 0 0 0 2px #60a5fa;
+}
+
+body.dark .storico-ordine-card {
+    background: #1e293b;
+}
+
+body.dark .storico-stat {
+    background: #1e293b;
+}
+
+body.dark .tag {
+    background: #334155;
+    border-color: #475569;
+    color: #e2e8f0;
+}
+
+body.dark #loading-overlay {
+    background: rgba(15, 23, 42, .6);
+}
+
+body.dark .clienti-suggestions,
+body.dark .lav-suggestions {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+body.dark .clienti-suggestion:hover,
+body.dark .lav-suggestion:hover {
+    background: #60a5fa;
+    color: #0f172a;
+}
+
+body.dark .global-search-results {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+body.dark .global-search-item:hover {
+    background: #334155;
+}
+
+body.dark .alert-warning {
+    background: #451a03;
+    border-color: #d97706;
+    color: #fde68a;
+}
+
+body.dark .header-search input {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-color: #475569;
+}
+
+/* Dark — stat cards */
+body.dark .stat-card {
+    background: var(--surface);
+    border-top-color: #60a5fa;
+}
+
+body.dark .stat-card-pronto {
+    border-top-color: #4ade80;
+}
+
+body.dark .stat-num {
+    color: #60a5fa;
+}
+
+body.dark .stat-card-pronto .stat-num {
+    color: #4ade80;
+}
+
+body.dark .stat-label {
+    color: #94a3b8;
+}
+
+/* Dark — badges stato */
+body.dark .badge-accettata {
+    background: #0c4a6e;
+    color: #7dd3fc;
+}
+
+body.dark .badge-in-lavorazione {
+    background: #78350f;
+    color: #fde68a;
+}
+
+body.dark .badge-pronto {
+    background: #14532d;
+    color: #86efac;
+}
+
+body.dark .badge-consegnata {
+    background: #1e293b;
+    color: #94a3b8;
+}
+
+body.dark .badge-pagato {
+    background: #14532d;
+    color: #86efac;
+}
+
+body.dark .badge-non-pagato {
+    background: #450a0a;
+    color: #fca5a5;
+}
+
+/* Dark — tabella voci */
+body.dark #tabella-voci th {
+    background: #0f172a;
+    color: #94a3b8;
+    border-bottom-color: #475569;
+}
+
+body.dark #tabella-voci td {
+    border-bottom-color: #334155;
+}
+
+body.dark #tabella-voci tfoot td {
+    border-top-color: #475569;
+}
+
+/* Dark — breadcrumb, empty state, voci badge */
+body.dark #breadcrumb {
+    color: #94a3b8;
+}
+
+body.dark .empty-state {
+    color: #94a3b8;
+}
+
+body.dark .voci-badge {
+    background: #60a5fa;
+    color: #0f172a;
+}
+
+/* Dark — card title & sub */
+body.dark .card-title {
+    color: #e2e8f0;
+}
+
+body.dark .card-sub {
+    color: #94a3b8;
+}
+
+/* Dark — kanban card text */
+body.dark .kanban-card-nome {
+    color: #e2e8f0;
+}
+
+body.dark .kanban-card-sub {
+    color: #94a3b8;
+}
+
+body.dark .kanban-col-title {
+    color: #94a3b8;
+}
+
+/* Dark — select stato nel modal */
+body.dark #ordine-stato.stato-accettata {
+    background: #0c4a6e;
+    color: #7dd3fc;
+    border-color: #0284c7;
+}
+
+body.dark #ordine-stato.stato-in_lavorazione {
+    background: #78350f;
+    color: #fde68a;
+    border-color: #d97706;
+}
+
+body.dark #ordine-stato.stato-pronto {
+    background: #14532d;
+    color: #86efac;
+    border-color: #16a34a;
+}
+
+body.dark #ordine-stato.stato-consegnata {
+    background: #1e293b;
+    color: #94a3b8;
+    border-color: #475569;
+}
+
+/* Dark — foto, acconto, filter bar */
+body.dark .foto-thumb {
+    border-color: #475569;
+}
+
+body.dark .filter-bar select {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-color: #475569;
+}
+
+body.dark .filter-bar-advanced select,
+body.dark .filter-bar-advanced input[type="date"] {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-color: #475569;
+}
+
+/* Dark — checkbox, modal h3, storico stats */
+body.dark .checkbox-label {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+body.dark .checkbox-label span {
+    color: #e2e8f0;
+}
+
+body.dark .modal-box h3 {
+    color: #e2e8f0;
+}
+
+body.dark .storico-stat {
+    border-top-color: #60a5fa;
+}
+
+body.dark .storico-stat-num {
+    color: #60a5fa;
+}
+
+body.dark .storico-stat-label {
+    color: #94a3b8;
+}
+
+/* Dark — view toggle, dashboard actions */
+body.dark .view-toggle {
+    border-color: #475569;
+}
+
+body.dark .view-toggle button {
+    color: #94a3b8;
+}
+
+body.dark .view-toggle button.active {
+    background: #60a5fa;
+    color: #0f172a;
+}
+
+body.dark .btn-secondary {
+    background: #334155;
+    color: #e2e8f0;
+}
+
+body.dark .btn-secondary:hover {
+    background: #475569;
+}
 
 /* ── Theme Toggle Button ──────────────────────────────────── */
 .theme-toggle {
@@ -1252,6 +1600,7 @@ body.dark .header-search input { background: #0f172a; color: #e2e8f0; border-col
     line-height: 1;
     transition: background .15s;
 }
+
 .theme-toggle:hover {
     background: var(--surface);
 }
