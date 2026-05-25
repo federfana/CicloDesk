@@ -67,6 +67,8 @@ ciclodesk/
 │
 └── public/
     ├── index.html            # Pagina principale (SPA)
+    ├── manifest.json         # Manifest PWA
+    ├── sw.js                 # Service Worker (cache offline)
     ├── img/
     │   └── logo.svg          # Logo Cerica Bikelab
     ├── css/
@@ -637,6 +639,56 @@ Gestisce esclusivamente:
 
 ---
 
+#### `public/sw.js` — Service Worker *(v1.9.0)*
+
+**Tecnologie:** Service Worker API, Cache API, Fetch API
+
+```
+Cosa fa:
+1. All'installazione, pre-carica in cache tutti i file statici dell'app
+2. All'attivazione, elimina le cache di versioni precedenti
+3. Intercetta ogni richiesta di rete e sceglie la strategia:
+   - File statici → cache-first (dalla cache, fallback rete)
+   - Chiamate API → network-first (rete, fallback cache)
+```
+
+**Concetti chiave:**
+
+- **`CACHE_NAME = 'ciclodesk-v1.9.0'`** — nome versionato della cache; cambiarlo forza il rinnovo di tutti gli asset
+- **`self.addEventListener('install')`** — evento eseguito una sola volta al primo download del SW; pre-carica 15 asset statici nella cache
+- **`self.skipWaiting()`** — attiva il nuovo SW immediatamente senza aspettare la chiusura di tutte le tab
+- **`self.clients.claim()`** — prende il controllo delle pagine già aperte dopo l'attivazione
+- **Cache-first (asset statici)** — HTML, CSS, JS, logo vengono serviti dalla cache locale; la rete è usata solo se il file non è in cache → caricamento istantaneo dopo la prima visita
+- **Network-first (`/api/*`)** — le chiamate API provano sempre la rete per dati freschi; se offline, servono l'ultima risposta GET salvata in cache
+- **Pulizia cache** — nell'evento `activate`, le cache con nome diverso da quello corrente vengono eliminate automaticamente
+- **Registrazione** — avviene in `app.js` con `navigator.serviceWorker.register('/sw.js')` alla fine del `DOMContentLoaded`
+
+> ⚠️ Il Service Worker funziona solo su HTTPS o su `localhost`. In rete locale (`http://192.168.x.x`) alcuni browser potrebbero non attivarlo.
+
+---
+
+#### `public/manifest.json` — Manifest PWA *(v1.9.0)*
+
+**Tecnologie:** Web App Manifest (standard W3C)
+
+```
+Cosa fa:
+1. Dichiara CicloDesk come app installabile
+2. Definisce nome, icona, colori e modalità di visualizzazione
+3. Abilita il prompt "Aggiungi alla schermata Home" su mobile
+```
+
+**Concetti chiave:**
+
+- **`"display": "standalone"`** — l'app si apre senza barra degli indirizzi, con aspetto nativo
+- **`"start_url": "/"`** — quando aperta dalla Home, carica la pagina principale
+- **`"theme_color": "#334155"`** — colore della barra di stato su Android e title bar su desktop
+- **`"background_color": "#f8fafc"`** — sfondo dello splash screen prima che l'app carichi
+- **`"icons"`** — logo SVG con `"purpose": "any maskable"`, compatibile con le maschere circolari Android
+- **Collegamento** — referenziato in `index.html` tramite `<link rel="manifest" href="manifest.json">`
+
+---
+
 ## 9. Come comunicano tra loro
 
 ### Schema visivo completo
@@ -1162,6 +1214,7 @@ const PORT = process.env.PORT || 3001;
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.9.0** | 2026-05-25 | **15 nuove funzionalità:** 1) Toast ovunque — tutti gli alert() rimpiazzati; 2) Ordinamento liste — clienti alfabetici, ordini per data desc; 3) Filtri ordini avanzati — per cliente, data da/a; 4) Badge contatore voci — numero lavorazioni visibile su ogni card ordine; 5) Doppio-click protezione — pulsanti Salva disabilitati durante submit; 6) Animazioni modali — fade-in/slide-up CSS; 7) Empty state illustrato — SVG dedicato per ogni sezione vuota; 8) Badge contatore nav — "Clienti (N)", "Ordini (N)" nella navigazione; 9) Breadcrumb — percorso con icona sotto l'header; 10) Responsive cards tablet — griglia a 2 colonne su tablet, 3 per catalogo desktop; 11) Shortcut tastiera — Ctrl+N nuovo, Ctrl+S salva, Ctrl+F cerca, Ctrl+D dashboard; 12) Kanban drag & drop — vista alternativa ordini con 4 colonne stato, drag per cambiare stato; 13) Suono notifica — beep Web Audio per ordini fermi >48h (1 volta per sessione); 14) PWA offline — service worker con cache-first per asset e network-first per API, manifest.json; 15) Tema scuro — toggle con persistenza localStorage. **Nuovi file:** `public/sw.js`, `public/manifest.json` |
 | **1.8.0** | 2026-05-22 | **Sicurezza:** protezione XSS completa (escape HTML su tutti i dati utente renderizzati con innerHTML); backup .db sicuro in WAL mode (usa `db.backup()` su file temporaneo); validazione foto (solo `data:image/`); `newId()` con `crypto.randomBytes` (64 bit di entropia); validazione acconto server-side ricalcola totale dalle voci. **Bug fix:** `_ordineFoto.map is not a function` (normalizzazione stringa/array); query LIKE su JSON sostituita con `json_each()`; PUT clienti restituisce dati reali dal DB; `raccogliVoci()` segnala errore se righe senza lavorazione selezionata; rimosso dead code (listener change su hidden input). **UX:** tasto Escape chiude i modali; loading spinner durante caricamento dati; conferma chiusura modale se il form ha modifiche non salvate; `aria-label` su tutti i pulsanti emoji (accessibilità); navigazione mobile con scroll orizzontale. **Modifica stato ordine:** select colorato con icone nel modal modifica (nascosto in creazione); colore sfondo/bordo cambia dinamicamente in base allo stato selezionato. **Codice:** alert() rimpiazzati con toast showError() |
 | **1.7.0** | 2026-05-22 | **Ricerca globale:** barra nell'header con ricerca live tra clienti, ordini e lavorazioni; risultati cliccabili. **Notifiche dashboard:** alert automatico per ordini fermi da più di 48h con link diretto. **Foto ordine:** upload immagini (max 2MB) con preview e rimozione; salvate come base64 nel DB. **Gestione acconti/caparre:** campo dedicato nel modal ordine, calcolo resto in tempo reale, info visibile nelle card. **Backup da interfaccia:** pulsanti in dashboard per download .db e export JSON. **Conferma cambio cliente:** in modifica ordine, richiesta conferma se si cambia il cliente associato. **Fix:** prezzo lavorazioni non sovrascrive il prezzo salvato nell'ordine; cognome obbligatorio; bici visibile subito dopo selezione cliente in nuovo ordine; nome bici via JOIN SQL (sempre aggiornato). **API:** `GET /api/backup` e `GET /api/backup/json`. **DB:** nuove colonne `acconto` e `foto` su ordini (migrazione automatica) |
 | **1.6.0** | 2026-05-22 | **Aggiornamenti tecnici:** Node.js v22 LTS come versione consigliata (v20 EOL); `better-sqlite3` aggiornato a v12.10.0 (supporto nativo Node.js v22, binari precompilati). **Stampa ordine:** pulsante 🖨️ su ogni card ordine — apre finestra di stampa con ricevuta formattata (cliente, bici, lavorazioni, totale, pagamento); compatibile con "Salva come PDF" del browser. **Fix:** doppia bici nel dropdown modifica ordine (race condition tra due chiamate concorrenti ad `aggiornaBiciSelect`). **UX:** clienti ordinati per cognome → nome (stile rubrica) |
@@ -1174,4 +1227,4 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-*🚲 CicloDesk v1.8.0 — Gestionale per ciclo officina Cerica Bikelab*
+*🚲 CicloDesk v1.9.0 — Gestionale per ciclo officina Cerica Bikelab*

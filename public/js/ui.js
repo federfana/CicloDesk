@@ -22,8 +22,14 @@ const UI = (() => {
     return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  function emptyState(msg) {
-    return `<p class="empty-state">${msg}</p>`;
+  function emptyState(msg, type = 'generic') {
+    const svgs = {
+      generic: `<svg width="64" height="64" fill="none" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="2" opacity=".3"/><path d="M22 34h20M22 28h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+      clienti: `<svg width="64" height="64" fill="none" viewBox="0 0 64 64"><circle cx="32" cy="24" r="10" stroke="currentColor" stroke-width="2" opacity=".4"/><path d="M16 52c0-8.8 7.2-16 16-16s16 7.2 16 16" stroke="currentColor" stroke-width="2" opacity=".3"/></svg>`,
+      ordini: `<svg width="64" height="64" fill="none" viewBox="0 0 64 64"><rect x="14" y="10" width="36" height="44" rx="4" stroke="currentColor" stroke-width="2" opacity=".3"/><path d="M22 22h20M22 30h14M22 38h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".4"/></svg>`,
+      bici: `<svg width="64" height="64" fill="none" viewBox="0 0 64 64"><circle cx="20" cy="42" r="10" stroke="currentColor" stroke-width="2" opacity=".3"/><circle cx="44" cy="42" r="10" stroke="currentColor" stroke-width="2" opacity=".3"/><path d="M20 42l12-20h8l4 20M32 22l12 20" stroke="currentColor" stroke-width="2" opacity=".4"/></svg>`,
+    };
+    return `<div class="empty-state">${svgs[type] || svgs.generic}<p>${msg}</p></div>`;
   }
 
   // ── Badge stato ordine ────────────────────────────────────────
@@ -115,6 +121,8 @@ const UI = (() => {
             return `<li>${esc(nome)} — ${esc(o.biciNome) || 'ordine'} (${gg}g ${ore%24}h) <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">Apri</button></li>`;
           }).join('')}</ul>
         </div>`;
+      // Beep notification (#13)
+      beepNotifica();
     } else {
       alertsContainer.innerHTML = '';
     }
@@ -122,7 +130,7 @@ const UI = (() => {
     const container  = document.getElementById('dashboard-in-list');
 
     if (!inOfficina.length) {
-      container.innerHTML = emptyState('Nessuna bici in officina al momento.');
+      container.innerHTML = emptyState('Nessuna bici in officina al momento.', 'bici');
       return;
     }
 
@@ -158,9 +166,12 @@ const UI = (() => {
     const container = document.getElementById('clienti-list');
 
     if (!clienti.length) {
-      container.innerHTML = emptyState('Nessun cliente trovato.');
+      container.innerHTML = emptyState('Nessun cliente trovato.', 'clienti');
       return;
     }
+
+    // Ordinamento alfabetico per cognome (#2)
+    clienti.sort((a, b) => (a.cognome || '').localeCompare(b.cognome || '') || (a.nome || '').localeCompare(b.nome || ''));
 
     container.innerHTML = clienti.map(c => {
       const ordini      = tuttiOrdini.filter(o => o.clienteId === c.id);
@@ -192,15 +203,38 @@ const UI = (() => {
   }
 
   // ── Ordini ────────────────────────────────────────────────────
-  async function renderOrdini(filtro = 'tutti', query = '') {
+  async function renderOrdini(filtro = 'tutti', query = '', filtriExtra = {}) {
     const [tuttiOrdini, clienti] = await Promise.all([
       OrdiniService.getAll(),
       ClientiService.getAll(),
     ]);
     const clientiMap = Object.fromEntries(clienti.map(c => [c.id, c]));
 
+    // Popola select filtro cliente (#3)
+    const selCliente = document.getElementById('filter-ordini-cliente');
+    if (selCliente && selCliente.options.length <= 1) {
+      const sorted = [...clienti].sort((a, b) => (a.cognome || '').localeCompare(b.cognome || ''));
+      sorted.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = [c.cognome, c.nome].filter(Boolean).join(' ');
+        selCliente.appendChild(opt);
+      });
+    }
+
     let ordini = tuttiOrdini;
     if (filtro !== 'tutti') ordini = ordini.filter(o => o.stato === filtro);
+
+    // Filtri avanzati (#3)
+    if (filtriExtra.clienteId) ordini = ordini.filter(o => o.clienteId === filtriExtra.clienteId);
+    if (filtriExtra.da) {
+      const da = new Date(filtriExtra.da).getTime();
+      ordini = ordini.filter(o => new Date(o.dataIngresso).getTime() >= da);
+    }
+    if (filtriExtra.a) {
+      const a = new Date(filtriExtra.a).getTime() + 86400000;
+      ordini = ordini.filter(o => new Date(o.dataIngresso).getTime() <= a);
+    }
 
     if (query.trim()) {
       const q = query.toLowerCase().trim();
@@ -208,6 +242,7 @@ const UI = (() => {
         const c = clientiMap[o.clienteId];
         return (
           (c?.nome || '').toLowerCase().includes(q) ||
+          (c?.cognome || '').toLowerCase().includes(q) ||
           (o.biciNome || '').toLowerCase().includes(q) ||
           (o.note  || '').toLowerCase().includes(q) ||
           o.voci.some(v =>
@@ -218,9 +253,20 @@ const UI = (() => {
       });
     }
 
+    // Ordinamento per data ingresso desc (#2)
+    ordini.sort((a, b) => new Date(b.dataIngresso) - new Date(a.dataIngresso));
+
     const container = document.getElementById('ordini-list');
+    const kanbanContainer = document.getElementById('ordini-kanban');
+
+    // Se vista kanban attiva, renderizza kanban
+    if (kanbanContainer && !kanbanContainer.classList.contains('hidden')) {
+      renderKanban(ordini, clientiMap, tuttiOrdini);
+      return;
+    }
+
     if (!ordini.length) {
-      container.innerHTML = emptyState('Nessun ordine trovato.');
+      container.innerHTML = emptyState('Nessun ordine trovato.', 'ordini');
       return;
     }
 
@@ -233,7 +279,10 @@ const UI = (() => {
         <div class="card stato-${o.stato}">
           <div class="card-row">
             <span class="card-title">👤 ${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente rimosso')}</span>
-            ${badgeStato(o.stato)}
+            <div style="display:flex;align-items:center;gap:.3rem">
+              <span class="voci-badge" title="${o.voci.length} lavorazioni">${o.voci.length}</span>
+              ${badgeStato(o.stato)}
+            </div>
           </div>
           <span class="card-sub">
             ${o.biciNome ? `🚲 ${esc(o.biciNome)} &nbsp;|&nbsp; ` : ''}
@@ -268,7 +317,7 @@ const UI = (() => {
     const container   = document.getElementById('catalogo-list');
 
     if (!lavorazioni.length) {
-      container.innerHTML = emptyState('Nessuna lavorazione nel catalogo.');
+      container.innerHTML = emptyState('Nessuna lavorazione nel catalogo.', 'generic');
       return;
     }
 
@@ -328,7 +377,7 @@ const UI = (() => {
     const container = document.getElementById('storico-ordini-list');
 
     if (!ordini.length) {
-      container.innerHTML = emptyState('Nessun intervento trovato.');
+      container.innerHTML = emptyState('Nessun intervento trovato.', 'ordini');
       return;
     }
 
@@ -391,7 +440,7 @@ const UI = (() => {
   function renderBiciList(bici) {
     const container = document.getElementById('bici-attuali-list');
     if (!bici.length) {
-      container.innerHTML = emptyState('Nessuna bici associata. Clicca "+ Aggiungi Bici".');
+      container.innerHTML = emptyState('Nessuna bici associata. Clicca "+ Aggiungi Bici".', 'bici');
       return;
     }
     container.innerHTML = bici.map(b => {
@@ -911,6 +960,106 @@ const UI = (() => {
     results.classList.remove('hidden');
   }
 
+  // ── Kanban View (#12) ────────────────────────────────────────
+  function renderKanban(ordini, clientiMap, tuttiOrdini) {
+    const container = document.getElementById('ordini-kanban');
+    const stati = ['accettata', 'in_lavorazione', 'pronto', 'consegnata'];
+    const statiLabel = { accettata: '📥 Accettata', in_lavorazione: '🔧 In lavorazione', pronto: '✅ Pronto', consegnata: '📦 Consegnata' };
+
+    // Use all orders grouped by stato (ignore current filter for kanban columns)
+    const allByStato = {};
+    stati.forEach(s => { allByStato[s] = (tuttiOrdini || ordini).filter(o => o.stato === s); });
+
+    container.innerHTML = stati.map(stato => `
+      <div class="kanban-col" data-stato="${stato}">
+        <div class="kanban-col-title">${statiLabel[stato]} (${allByStato[stato].length})</div>
+        ${allByStato[stato].map(o => {
+          const c = clientiMap[o.clienteId];
+          return `<div class="kanban-card" draggable="true" data-id="${o.id}">
+            <div class="kanban-card-nome">${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : '?')}</div>
+            <div class="kanban-card-sub">${esc(o.biciNome) || '—'} · ${fmt(o.totale)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    `).join('');
+
+    // Drag & Drop HTML5
+    container.querySelectorAll('.kanban-card').forEach(card => {
+      card.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/plain', card.dataset.id);
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    });
+
+    container.querySelectorAll('.kanban-col').forEach(col => {
+      col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
+      col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+      col.addEventListener('drop', async e => {
+        e.preventDefault();
+        col.classList.remove('drag-over');
+        const ordineId = e.dataTransfer.getData('text/plain');
+        const nuovoStato = col.dataset.stato;
+        try {
+          const ordine = await OrdiniService.findById(ordineId);
+          if (ordine.stato === nuovoStato) return;
+          await OrdiniService.salva({
+            ...ordine,
+            stato: nuovoStato,
+            dataUscita: nuovoStato === 'consegnata' ? new Date().toISOString() : null,
+          }, ordine.voci);
+          // Re-render
+          const filtro = document.getElementById('filter-ordini').value || 'tutti';
+          const query = document.getElementById('search-ordini').value;
+          await renderOrdini(filtro, query);
+        } catch (err) { /* handled by caller */ }
+      });
+    });
+  }
+
+  // ── Beep Notification (#13) ────────────────────────────────────
+  function beepNotifica() {
+    if (sessionStorage.getItem('ciclo-beep-done')) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.15;
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+      sessionStorage.setItem('ciclo-beep-done', '1');
+    } catch (e) { /* ignore audio errors */ }
+  }
+
+  // ── Nav Badges (#8) ────────────────────────────────────────────
+  async function aggiornaNavBadges() {
+    try {
+      const [ordini, clienti] = await Promise.all([
+        OrdiniService.getAll(),
+        ClientiService.getAll(),
+      ]);
+      const inCorso = ordini.filter(o => o.stato !== 'consegnata').length;
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        const existing = btn.querySelector('.nav-badge');
+        if (existing) existing.remove();
+        const view = btn.dataset.view;
+        let count = 0;
+        if (view === 'clienti') count = clienti.length;
+        else if (view === 'ordini') count = inCorso;
+        if (count > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'nav-badge';
+          badge.textContent = count;
+          btn.appendChild(badge);
+        }
+      });
+    } catch (e) { /* silent */ }
+  }
+
   return {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
@@ -919,5 +1068,6 @@ const UI = (() => {
     aggiungiRigaVoce, raccogliVoci, getOrdineFoto, renderFotoPreview,
     openModal, closeAllModals,
     printOrdine, cercaGlobale, aggiornaLocale,
+    aggiornaNavBadges, beepNotifica,
   };
 })();

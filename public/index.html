@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#334155" />
   <title>🚲 CicloDesk</title>
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
 </head>
 <body>
 
@@ -21,9 +23,12 @@
       <button class="nav-btn active" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="clienti">Clienti</button>
       <button class="nav-btn" data-view="ordini">Ordini</button>
-      <button class="nav-btn" data-view="catalogo">Catalogo Lavorazioni</button>
+      <button class="nav-btn" data-view="catalogo">Catalogo</button>
     </nav>
+    <button id="btn-theme-toggle" class="theme-toggle" aria-label="Cambia tema" title="Tema chiaro/scuro">🌙</button>
   </header>
+
+  <div id="breadcrumb"></div>
 
   <main id="app">
 
@@ -77,7 +82,13 @@
     <section id="view-ordini" class="view">
       <div class="view-header">
         <h2>Ordini di Lavoro</h2>
-        <button id="btn-nuovo-ordine" class="btn btn-primary">+ Nuovo Ordine</button>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div class="view-toggle">
+            <button id="btn-view-list" class="active" title="Vista lista">☰</button>
+            <button id="btn-view-kanban" title="Vista Kanban">▥</button>
+          </div>
+          <button id="btn-nuovo-ordine" class="btn btn-primary">+ Nuovo Ordine</button>
+        </div>
       </div>
       <div class="filter-bar">
         <label>Filtra:
@@ -90,10 +101,24 @@
           </select>
         </label>
       </div>
+      <div class="filter-bar-advanced">
+        <label>Cliente:
+          <select id="filter-ordini-cliente">
+            <option value="">Tutti</option>
+          </select>
+        </label>
+        <label>Da:
+          <input type="date" id="filter-ordini-da" />
+        </label>
+        <label>A:
+          <input type="date" id="filter-ordini-a" />
+        </label>
+      </div>
       <div class="search-bar">
         <input type="text" id="search-ordini" placeholder="🔍 Cerca per cliente, lavorazione, note…" />
       </div>
       <div id="ordini-list" class="card-list"></div>
+      <div id="ordini-kanban" class="kanban-board hidden"></div>
     </section>
 
     <!-- ══════════════════════════════════════ CATALOGO -->
