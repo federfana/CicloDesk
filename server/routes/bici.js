@@ -67,9 +67,9 @@ router.put('/:id', (req, res) => {
     SET marca=?, modello=?, tipo=?, colore=?, seriale_forcella=?, seriale_ammortizzatore=?, note=?
     WHERE id=?
   `).run(
-    marca.trim(), modello.trim(), tipo,
-    colore.trim(), seriale_forcella.trim(), seriale_ammortizzatore.trim(),
-    note.trim(), id
+    (marca || '').trim(), (modello || '').trim(), tipo,
+    (colore || '').trim(), (seriale_forcella || '').trim(), (seriale_ammortizzatore || '').trim(),
+    (note || '').trim(), id
   );
 
   res.json(db.prepare('SELECT * FROM bici WHERE id = ?').get(id));

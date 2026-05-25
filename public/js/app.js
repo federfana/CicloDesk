@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Object.assign(t.style, {
       position: 'fixed', bottom: '1.5rem', right: '1.5rem',
       background: '#dc2626', color: '#fff', padding: '.75rem 1.2rem',
-      borderRadius: '8px', fontSize: '.9rem', zIndex: 9999,
+      borderRadius: '8px', fontSize: '.9rem', zIndex: 10001,
       boxShadow: '0 4px 12px rgba(0,0,0,.3)',
     });
     document.body.appendChild(t);
@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Object.assign(t.style, {
       position: 'fixed', bottom: '1.5rem', right: '1.5rem',
       background: '#16a34a', color: '#fff', padding: '.75rem 1.2rem',
-      borderRadius: '8px', fontSize: '.9rem', zIndex: 9999,
+      borderRadius: '8px', fontSize: '.9rem', zIndex: 10001,
       boxShadow: '0 4px 12px rgba(0,0,0,.3)',
     });
     document.body.appendChild(t);
