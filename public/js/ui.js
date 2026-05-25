@@ -511,7 +511,7 @@ const UI = (() => {
         .filter(item => !q || item.display.toLowerCase().includes(q))
         .slice(0, 8);
       suggestions.innerHTML = matches.map(item =>
-        `<div class="clienti-suggestion" data-id="${item.id}" data-value="${esc(item.display)}">${esc(item.display)}</div>`
+        `<div class="clienti-suggestion" data-id="${item.id}" data-value="${item.display}">${item.display}</div>`
       ).join('');
       suggestions.classList.toggle('hidden', matches.length === 0);
     }
@@ -603,11 +603,11 @@ const UI = (() => {
     const tr    = document.createElement('tr');
     tr.innerHTML = `
       <td style="position:relative">
-        <input type="text" class="inp-lavorazione" autocomplete="off" placeholder="— Scegli —" value="${esc(voce.nome || '')}" />
-        <input type="hidden" class="hid-lavorazione-id" value="${esc(voce.lavorazioneId || '')}" />
+        <input type="text" class="inp-lavorazione" autocomplete="off" placeholder="— Scegli —" value="${voce.nome || ''}" />
+        <input type="hidden" class="hid-lavorazione-id" value="${voce.lavorazioneId || ''}" />
         <div class="lav-suggestions hidden"></div>
       </td>
-      <td><input type="text"   class="inp-note-voce"   placeholder="Note…" value="${esc(voce.note || '')}" /></td>
+      <td><input type="text"   class="inp-note-voce"   placeholder="Note…" value="${voce.note   || ''}" /></td>
       <td><input type="number" class="inp-prezzo-voce" step="0.10" min="0"  value="${parseFloat(voce.prezzo || 0).toFixed(2)}" style="width:90px" /></td>
       <td><button type="button" class="btn btn-sm btn-danger btn-rimuovi-voce">✕</button></td>
     `;
@@ -629,7 +629,7 @@ const UI = (() => {
         .filter(item => !q || item.nome.toLowerCase().includes(q))
         .slice(0, 10);
       sugDiv.innerHTML = matches
-        .map(item => `<div class="lav-suggestion" data-id="${item.id}" data-value="${esc(item.display)}" data-price="${item.prezzo}">${esc(item.display)}</div>`)
+        .map(item => `<div class="lav-suggestion" data-id="${item.id}" data-value="${item.display}" data-price="${item.prezzo}">${item.display}</div>`)
         .join('');
       sugDiv.classList.toggle('hidden', matches.length === 0);
     }
@@ -850,9 +850,6 @@ const UI = (() => {
 </body></html>`;
 
     const w = window.open('', '_blank', 'width=700,height=820');
-    if (!w) {
-      throw new Error('Popup bloccato dal browser. Consenti i popup per questa pagina e riprova.');
-    }
     w.document.write(html);
     w.document.close();
   }

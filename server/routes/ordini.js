@@ -112,7 +112,7 @@ router.put('/:id', (req, res) => {
   `).run(
     clienteId, biciId || null, statoFinal,
     dataIngresso, dataUscitaFinal,
-    (note || '').trim(), JSON.stringify(voci), totale, pagatoFinal,
+    note, JSON.stringify(voci), totale, pagatoFinal,
     parseFloat(acconto) || 0, JSON.stringify(foto), id
   );
 
