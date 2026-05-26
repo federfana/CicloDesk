@@ -98,6 +98,10 @@ const UI = (() => {
     document.getElementById('stat-num-pronto').textContent = pronti.length;
     document.getElementById('stat-num-out').textContent = consOggi.length;
 
+    // Consegnati non pagati
+    const consNonPagati = tutti.filter(o => o.stato === 'consegnata' && !o.pagato);
+    document.getElementById('stat-num-non-pagato').textContent = consNonPagati.length;
+
     // ── Notifiche: ordini fermi da >48h ─────────────────────────
     const alertsContainer = document.getElementById('dashboard-alerts');
     const ORE_SOGLIA = 48;
@@ -223,7 +227,13 @@ const UI = (() => {
     }
 
     let ordini = tuttiOrdini;
-    if (filtro !== 'tutti') ordini = ordini.filter(o => o.stato === filtro);
+    if (filtro === 'consegnata_non_pagato') {
+      ordini = ordini.filter(o => o.stato === 'consegnata' && !o.pagato);
+    } else if (filtro === 'consegnata_pagato') {
+      ordini = ordini.filter(o => o.stato === 'consegnata' && o.pagato);
+    } else if (filtro !== 'tutti') {
+      ordini = ordini.filter(o => o.stato === filtro);
+    }
 
     // Filtri avanzati (#3)
     if (filtriExtra.clienteId) ordini = ordini.filter(o => o.clienteId === filtriExtra.clienteId);
@@ -275,8 +285,9 @@ const UI = (() => {
       const vociHtml = o.voci.map(v =>
         `<span class="tag">${esc(v.nome)} — ${fmt(v.prezzo)}${v.note ? ` (${esc(v.note)})` : ''}</span>`
       ).join('');
+      const nonPagatoCls = (o.stato === 'consegnata' && !o.pagato) ? ' non-pagato' : '';
       return `
-        <div class="card stato-${o.stato}">
+        <div class="card stato-${o.stato}${nonPagatoCls}">
           <div class="card-row">
             <span class="card-title">👤 ${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente rimosso')}</span>
             <div style="display:flex;align-items:center;gap:.3rem">
@@ -968,7 +979,7 @@ const UI = (() => {
 
     // Use all orders grouped by stato (ignore current filter for kanban columns)
     const allByStato = {};
-    stati.forEach(s => { allByStato[s] = (tuttiOrdini || ordini).filter(o => o.stato === s); });
+    stati.forEach(s => { allByStato[s] = ordini.filter(o => o.stato === s); });
 
     container.innerHTML = stati.map(stato => `
       <div class="kanban-col" data-stato="${stato}">

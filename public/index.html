@@ -52,6 +52,10 @@
           <span class="stat-num" id="stat-num-out">0</span>
           <span class="stat-label">Consegnate oggi</span>
         </div>
+        <div class="stat-card stat-card-non-pagato">
+          <span class="stat-num" id="stat-num-non-pagato">0</span>
+          <span class="stat-label">Consegnate non pagate</span>
+        </div>
       </div>
       <div id="dashboard-alerts" class="alerts-container"></div>
       <div class="dashboard-actions">
@@ -98,6 +102,8 @@
             <option value="in_lavorazione">🔧 In lavorazione</option>
             <option value="pronto">✅ Pronti</option>
             <option value="consegnata">📦 Consegnati</option>
+            <option value="consegnata_non_pagato">📦❗ Consegnati NON pagati</option>
+            <option value="consegnata_pagato">📦✅ Consegnati pagati</option>
           </select>
         </label>
       </div>

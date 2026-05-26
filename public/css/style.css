@@ -233,6 +233,14 @@ main {
     text-align: center;
 }
 
+.stat-card-non-pagato {
+    border-top-color: var(--danger);
+}
+
+.stat-card-non-pagato .stat-num {
+    color: var(--danger);
+}
+
 /* ── Card List ────────────────────────────────────────────── */
 .card-list {
     display: flex;
@@ -266,6 +274,18 @@ main {
 
 .card.stato-consegnata {
     border-left-color: #cbd5e1;
+}
+
+.card.stato-consegnata.non-pagato {
+    border-left-color: var(--danger);
+    background: #fef2f2;
+}
+
+.card.stato-consegnata.non-pagato .card-title::after {
+    content: ' — ⚠️ NON PAGATO';
+    color: var(--danger);
+    font-size: .78rem;
+    font-weight: 700;
 }
 
 /* Compatibilità con vecchi stati */
@@ -669,6 +689,16 @@ textarea:focus {
     justify-content: flex-end;
     gap: .6rem;
     margin-top: 1.2rem;
+}
+
+#modal-ordine .modal-actions {
+    position: sticky;
+    bottom: -1.5rem;
+    background: var(--surface);
+    padding: 1rem 0 1.5rem;
+    margin-bottom: -1.5rem;
+    border-top: 1px solid var(--border);
+    z-index: 2;
 }
 
 /* ── Storico Cliente ──────────────────────────────────────── */
@@ -1309,6 +1339,11 @@ body.dark .modal-box {
     border-top-color: #60a5fa;
 }
 
+body.dark #modal-ordine .modal-actions {
+    background: #1e293b;
+    border-top-color: #334155;
+}
+
 body.dark .nav-btn {
     border-color: #475569;
     color: #94a3b8;
@@ -1403,6 +1438,14 @@ body.dark .stat-card-pronto {
     border-top-color: #4ade80;
 }
 
+body.dark .stat-card-non-pagato {
+    border-top-color: #f87171;
+}
+
+body.dark .stat-card-non-pagato .stat-num {
+    color: #f87171;
+}
+
 body.dark .stat-num {
     color: #60a5fa;
 }
@@ -1482,6 +1525,15 @@ body.dark .card-title {
 
 body.dark .card-sub {
     color: #94a3b8;
+}
+
+body.dark .card.stato-consegnata.non-pagato {
+    background: #450a0a;
+    border-left-color: #f87171;
+}
+
+body.dark .card.stato-consegnata.non-pagato .card-title::after {
+    color: #f87171;
 }
 
 /* Dark — kanban card text */

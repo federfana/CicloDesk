@@ -30,7 +30,8 @@ const DB = (() => {
   }
 
   function newId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const bytes = crypto.getRandomValues(new Uint8Array(8));
+    return Date.now().toString(36) + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
   }
 
   return { getAll, findById, create, update, upsert, remove, newId };

@@ -51,7 +51,7 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
   const { cnt } = db.prepare(
-    `SELECT COUNT(*) as cnt FROM ordini, json_each(json_extract(ordini.voci, '$'))
+    `SELECT COUNT(DISTINCT ordini.id) as cnt FROM ordini, json_each(ordini.voci)
      WHERE json_extract(value, '$.lavorazioneId') = ?`
   ).get(id);
   if (cnt > 0) {

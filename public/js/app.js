@@ -98,13 +98,17 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => showView(btn.dataset.view))
   );
 
-  // ── Ricerca ───────────────────────────────────────────────────
-  document.getElementById('search-clienti').addEventListener('input', e =>
-    UI.renderClienti(e.target.value).catch(showError)
-  );
-  document.getElementById('search-ordini').addEventListener('input', () =>
-    UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery(), getOrdiniFilterExtra()).catch(showError)
-  );
+  // ── Ricerca (con debounce) ────────────────────────────────────
+  let _searchClientiTimeout = null;
+  document.getElementById('search-clienti').addEventListener('input', e => {
+    clearTimeout(_searchClientiTimeout);
+    _searchClientiTimeout = setTimeout(() => UI.renderClienti(e.target.value).catch(showError), 250);
+  });
+  let _searchOrdiniTimeout = null;
+  document.getElementById('search-ordini').addEventListener('input', () => {
+    clearTimeout(_searchOrdiniTimeout);
+    _searchOrdiniTimeout = setTimeout(() => UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery(), getOrdiniFilterExtra()).catch(showError), 250);
+  });
   document.getElementById('filter-ordini').addEventListener('change', () => {
     sessionStorage.setItem('ciclo-ordini-filtro', getOrdiniFilter());
     UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery(), getOrdiniFilterExtra()).catch(showError);
@@ -361,9 +365,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Chiusura modali ───────────────────────────────────────────
   document.querySelectorAll('.modal-close').forEach(btn =>
-    btn.addEventListener('click', UI.closeAllModals)
+    btn.addEventListener('click', () => UI.closeAllModals())
   );
-  document.getElementById('overlay').addEventListener('click', UI.closeAllModals);
+  document.getElementById('overlay').addEventListener('click', () => UI.closeAllModals());
 
   // ── Escape key chiude modali ──────────────────────────────────
   document.addEventListener('keydown', e => {

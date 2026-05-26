@@ -98,5 +98,13 @@ if (n === 0) {
   console.log('✅  Lavorazioni default inserite.');
 }
 
+// ── Indici per performance ──────────────────────────────────────
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_bici_clienteId ON bici(clienteId);
+  CREATE INDEX IF NOT EXISTS idx_ordini_clienteId ON ordini(clienteId);
+  CREATE INDEX IF NOT EXISTS idx_ordini_stato ON ordini(stato);
+  CREATE INDEX IF NOT EXISTS idx_ordini_biciId ON ordini(biciId);
+`);
+
 module.exports = db;
 
