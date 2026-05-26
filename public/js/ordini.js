@@ -7,6 +7,18 @@ const OrdiniService = (() => {
     return DB.getAll('ordini');
   }
 
+  // Paginazione server-side: restituisce {data, total, limit, offset}
+  async function getPaginated({ limit = 50, offset = 0, stato, clienteId } = {}) {
+    const params = new URLSearchParams();
+    params.set('limit', limit);
+    params.set('offset', offset);
+    if (stato) params.set('stato', stato);
+    if (clienteId) params.set('clienteId', clienteId);
+    const res = await fetch(`/api/ordini?${params}`);
+    if (!res.ok) throw new Error('Errore server ' + res.status);
+    return res.json();
+  }
+
   async function findById(id) {
     return DB.findById('ordini', id);
   }
@@ -93,7 +105,7 @@ const OrdiniService = (() => {
 
   return {
     STATI,
-    getAll, findById, getByCliente, getAperti, getChiusiOggi,
+    getAll, getPaginated, findById, getByCliente, getAperti, getChiusiOggi,
     salva, avanza, riapri, togglePagato, elimina, calcolaIncasso,
   };
 })();

@@ -78,6 +78,10 @@ const UI = (() => {
   // Mappa lavorazioni per datalist: display -> {id, prezzo, nome}
   let _lavorazioniMap = {};
 
+  // Paginazione ordini
+  let _ordiniVisibili = 50;
+  let _lastOrdiniFilterKey = '';
+
   // ── Dashboard ─────────────────────────────────────────────────
   async function renderDashboard() {
     const [tutti, clienti] = await Promise.all([
@@ -208,6 +212,13 @@ const UI = (() => {
 
   // ── Ordini ────────────────────────────────────────────────────
   async function renderOrdini(filtro = 'tutti', query = '', filtriExtra = {}) {
+    // Reset paginazione se filtri cambiano
+    const filterKey = JSON.stringify({ filtro, query, filtriExtra });
+    if (filterKey !== _lastOrdiniFilterKey) {
+      _ordiniVisibili = 50;
+      _lastOrdiniFilterKey = filterKey;
+    }
+
     const [tuttiOrdini, clienti] = await Promise.all([
       OrdiniService.getAll(),
       ClientiService.getAll(),
@@ -280,7 +291,12 @@ const UI = (() => {
       return;
     }
 
-    container.innerHTML = ordini.map(o => {
+    // Paginazione client-side: mostra max PAGE_SIZE ordini
+    const PAGE_SIZE = 50;
+    const totaleOrdini = ordini.length;
+    const mostrare = ordini.slice(0, _ordiniVisibili || PAGE_SIZE);
+
+    container.innerHTML = mostrare.map(o => {
       const c = clientiMap[o.clienteId];
       const vociHtml = o.voci.map(v =>
         `<span class="tag">${esc(v.nome)} — ${fmt(v.prezzo)}${v.note ? ` (${esc(v.note)})` : ''}</span>`
@@ -320,6 +336,21 @@ const UI = (() => {
           </div>
         </div>`;
     }).join('');
+
+    // Pulsante "Carica altri" se ci sono più ordini
+    if (mostrare.length < totaleOrdini) {
+      container.insertAdjacentHTML('beforeend', `
+        <div style="text-align:center;padding:1rem">
+          <button class="btn btn-secondary" id="btn-carica-altri-ordini">
+            📋 Carica altri (${mostrare.length} di ${totaleOrdini})
+          </button>
+        </div>
+      `);
+      document.getElementById('btn-carica-altri-ordini').addEventListener('click', () => {
+        _ordiniVisibili = (_ordiniVisibili || PAGE_SIZE) + PAGE_SIZE;
+        renderOrdini(filtro, query, filtriExtra);
+      });
+    }
   }
 
   // ── Catalogo ──────────────────────────────────────────────────
@@ -763,11 +794,16 @@ const UI = (() => {
     const acconto = parseFloat(document.getElementById('ordine-acconto')?.value) || 0;
     const restoLabel = document.getElementById('ordine-resto-label');
     if (restoLabel) {
-      if (acconto > 0) {
+      if (acconto > 0 && acconto > tot) {
+        restoLabel.textContent = `⚠️ Acconto (${fmt(acconto)}) supera il totale (${fmt(tot)})!`;
+        restoLabel.style.color = '#dc2626';
+      } else if (acconto > 0) {
         const resto = Math.max(0, tot - acconto);
         restoLabel.textContent = `Acconto: ${fmt(acconto)} — Resta da saldare: ${fmt(resto)}`;
+        restoLabel.style.color = '';
       } else {
         restoLabel.textContent = '';
+        restoLabel.style.color = '';
       }
     }
   }
@@ -905,7 +941,7 @@ const UI = (() => {
     <tr class="tot"><td colspan="2">Totale</td><td class="num">${fmtEur(ordine.totale)}</td></tr>
   </tbody>
 </table>
-<div class="footer">CicloDesk v1.7.0</div>
+<div class="footer">CicloDesk v1.9.0</div>
 <script>window.onload=()=>window.print();<\/script>
 </body></html>`;
 

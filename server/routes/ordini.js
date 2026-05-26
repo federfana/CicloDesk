@@ -11,12 +11,30 @@ function parse(row) {
 }
 
 // GET /api/ordini
-router.get('/', (_req, res) => {
-  const rows = db.prepare(`
+router.get('/', (req, res) => {
+  const { limit, offset, stato, clienteId } = req.query;
+
+  let sql = `
     SELECT o.*,
       TRIM(COALESCE(b.marca, '') || CASE WHEN b.marca != '' AND b.modello != '' THEN ' ' ELSE '' END || COALESCE(b.modello, '')) AS biciNome
     FROM ordini o
     LEFT JOIN bici b ON b.id = o.biciId
+  `;
+  const conditions = [];
+  const params = [];
+
+  if (stato) {
+    conditions.push('o.stato = ?');
+    params.push(stato);
+  }
+  if (clienteId) {
+    conditions.push('o.clienteId = ?');
+    params.push(clienteId);
+  }
+
+  if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+
+  sql += `
     ORDER BY
       CASE o.stato
         WHEN 'accettata'      THEN 0
@@ -26,8 +44,26 @@ router.get('/', (_req, res) => {
         ELSE 4
       END ASC,
       o.dataIngresso DESC
-  `).all();
-  res.json(rows.map(parse));
+  `;
+
+  // Conta totale prima di paginare
+  let total = null;
+  if (limit) {
+    const countSql = `SELECT COUNT(*) as cnt FROM ordini o` +
+      (conditions.length ? ' WHERE ' + conditions.join(' AND ') : '');
+    total = db.prepare(countSql).get(...params).cnt;
+    sql += ' LIMIT ? OFFSET ?';
+    params.push(parseInt(limit, 10) || 50, parseInt(offset, 10) || 0);
+  }
+
+  const rows = db.prepare(sql).all(...params);
+  const data = rows.map(parse);
+
+  if (total !== null) {
+    res.json({ data, total, limit: parseInt(limit, 10) || 50, offset: parseInt(offset, 10) || 0 });
+  } else {
+    res.json(data);
+  }
 });
 
 // GET /api/ordini/:id

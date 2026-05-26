@@ -361,16 +361,18 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 Cosa fa:
 1. Crea il server Express
 2. Abilita la lettura del JSON in arrivo
-3. Serve i file statici della cartella /public
-4. Registra le 4 route API (clienti, ordini, lavorazioni, bici)
-5. Si mette in ascolto sulla porta 3000
-6. Calcola l'IP locale e lo stampa in console
+3. Applica rate limiting sulle route /api/* (max 120 req/min per IP)
+4. Serve i file statici della cartella /public
+5. Registra le 4 route API (clienti, ordini, lavorazioni, bici)
+6. Si mette in ascolto sulla porta 3000
+7. Calcola l'IP locale e lo stampa in console
 ```
 
 **Concetti chiave:**
 
 - **`express()`** — crea l'applicazione web
 - **`express.json()`** — middleware che trasforma automaticamente il body JSON delle richieste in oggetto JavaScript
+- **Rate limiter** — middleware in-memory che traccia le richieste per IP; restituisce HTTP 429 se un client supera 120 richieste al minuto. La mappa viene pulita ogni 5 minuti
 - **`express.static()`** — serve HTML, CSS, JS, immagini dalla cartella `public/` senza scrivere route manualmente
 - **`app.listen('0.0.0.0')`** — ascolta su tutte le interfacce di rete, così è raggiungibile anche dal telefono in Wi-Fi
 - **`os.networkInterfaces()`** — funzione Node.js che legge le schede di rete del PC per trovare l'IP locale
@@ -649,18 +651,21 @@ Cosa fa:
 2. All'attivazione, elimina le cache di versioni precedenti
 3. Intercetta ogni richiesta di rete e sceglie la strategia:
    - File statici → cache-first (dalla cache, fallback rete)
-   - Chiamate API → network-first (rete, fallback cache)
+   - Chiamate API → network-first (rete, fallback cache con scadenza 5 min)
 ```
 
 **Concetti chiave:**
 
-- **`CACHE_NAME = 'ciclodesk-v1.9.0'`** — nome versionato della cache; cambiarlo forza il rinnovo di tutti gli asset
+- **`CACHE_NAME = 'ciclodesk-v1.9.1'`** — nome versionato della cache per asset statici; cambiarlo forza il rinnovo
+- **`API_CACHE = 'ciclodesk-api-v1'`** — cache separata per le risposte API con scadenza temporale (5 minuti)
+- **`API_MAX_AGE = 5 * 60 * 1000`** — le risposte API in cache scadono dopo 5 minuti; se offline e cache scaduta, i dati vengono comunque restituiti con header `X-Cache-Stale: true`
 - **`self.addEventListener('install')`** — evento eseguito una sola volta al primo download del SW; pre-carica 15 asset statici nella cache
 - **`self.skipWaiting()`** — attiva il nuovo SW immediatamente senza aspettare la chiusura di tutte le tab
 - **`self.clients.claim()`** — prende il controllo delle pagine già aperte dopo l'attivazione
 - **Cache-first (asset statici)** — HTML, CSS, JS, logo vengono serviti dalla cache locale; la rete è usata solo se il file non è in cache → caricamento istantaneo dopo la prima visita
-- **Network-first (`/api/*`)** — le chiamate API provano sempre la rete per dati freschi; se offline, servono l'ultima risposta GET salvata in cache
-- **Pulizia cache** — nell'evento `activate`, le cache con nome diverso da quello corrente vengono eliminate automaticamente
+- **Network-first (`/api/*`)** — le chiamate API provano sempre la rete per dati freschi; se offline, servono l'ultima risposta GET salvata in cache (solo se non scaduta)
+- **Timestamp nella cache** — ogni risposta API cached include l'header custom `sw-cached-at` con il timestamp di salvataggio
+- **Pulizia cache** — nell'evento `activate`, le cache con nome diverso da quelli correnti vengono eliminate automaticamente
 - **Registrazione** — avviene in `app.js` con `navigator.serviceWorker.register('/sw.js')` alla fine del `DOMContentLoaded`
 
 > ⚠️ Il Service Worker funziona solo su HTTPS o su `localhost`. In rete locale (`http://192.168.x.x`) alcuni browser potrebbero non attivarlo.
@@ -875,10 +880,15 @@ Tutte le API accettano e restituiscono **JSON**.
 | Metodo | Endpoint | Descrizione |
 |---|---|---|
 | `GET` | `/api/ordini` | Lista tutti gli ordini (dal più recente) |
+| `GET` | `/api/ordini?limit=50&offset=0` | Lista paginata (restituisce `{data, total, limit, offset}`) |
+| `GET` | `/api/ordini?stato=pronto` | Filtra per stato lato server |
+| `GET` | `/api/ordini?clienteId=xxx` | Filtra per cliente lato server |
 | `GET` | `/api/ordini/:id` | Dettaglio singolo ordine |
 | `POST` | `/api/ordini` | Crea nuovo ordine |
 | `PUT` | `/api/ordini/:id` | Aggiorna / avanza stato / riapri |
 | `DELETE` | `/api/ordini/:id` | Elimina ordine |
+
+> 💡 Senza parametro `limit`, la GET restituisce tutti gli ordini come array (retrocompatibile). Con `limit`, la risposta diventa un oggetto `{ data: [...], total, limit, offset }`.
 
 **Corpo POST/PUT:**
 ```json
@@ -1200,7 +1210,10 @@ const PORT = process.env.PORT || 3001;
 | Funzionalità | Priorità | Descrizione |
 |---|---|---|
 | **Login con password** | 🔴 Alta | Proteggere i dati da accessi non autorizzati |
-| **Stampa / PDF ordine** | 🔴 Alta | ✅ Implementato in v1.6.0 — pulsante 🖨️ su ogni ordine |
+| **Stampa / PDF ordine** | — | ✅ Implementato in v1.6.0 |
+| **Rate limiting API** | — | ✅ Implementato in v1.9.1 (120 req/min per IP) |
+| **Cache API con scadenza** | — | ✅ Implementato in v1.9.1 (TTL 5 min) |
+| **Paginazione ordini** | — | ✅ Implementato in v1.9.1 (50 per pagina + "Carica altri") |
 | **Backup automatico su cloud** | 🟡 Media | Copia automatica su Google Drive o Dropbox |
 | **Notifiche pronto-ritiro** | 🟡 Media | Pulsante “Notifica WhatsApp” (gratuito, link `wa.me`) o SMS/email via API Twilio/nodemailer |
 | **Statistiche mensili** | 🟢 Bassa | Grafici incassi e lavorazioni più frequenti |
@@ -1214,6 +1227,7 @@ const PORT = process.env.PORT || 3001;
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.9.1** | 2026-05-26 | **Sicurezza e performance:** 1) Rate limiting API — max 120 req/min per IP con risposta 429; 2) Service Worker cache con scadenza — risposte API scadono dopo 5 min (cache separata `ciclodesk-api-v1`); 3) Paginazione ordini — server supporta `?limit=&offset=&stato=&clienteId=`, frontend mostra 50 ordini alla volta con pulsante "Carica altri"; 4) Pulsante ⌨️ guida shortcut in header; 5) Tasto `?` apre la guida scorciatoie (solo fuori da input). **Fix:** shortcut `?` ora ignora i campi input/textarea; versione corretta in stampa (v1.9.0); warning rosso in tempo reale se acconto > totale; debounce 200ms su ricerca storico |
 | **1.9.0** | 2026-05-25 | **15 nuove funzionalità:** 1) Toast ovunque — tutti gli alert() rimpiazzati; 2) Ordinamento liste — clienti alfabetici, ordini per data desc; 3) Filtri ordini avanzati — per cliente, data da/a; 4) Badge contatore voci — numero lavorazioni visibile su ogni card ordine; 5) Doppio-click protezione — pulsanti Salva disabilitati durante submit; 6) Animazioni modali — fade-in/slide-up CSS; 7) Empty state illustrato — SVG dedicato per ogni sezione vuota; 8) Badge contatore nav — "Clienti (N)", "Ordini (N)" nella navigazione; 9) Breadcrumb — percorso con icona sotto l'header; 10) Responsive cards tablet — griglia a 2 colonne su tablet, 3 per catalogo desktop; 11) Shortcut tastiera — Ctrl+N nuovo, Ctrl+S salva, Ctrl+F cerca, Ctrl+D dashboard; 12) Kanban drag & drop — vista alternativa ordini con 4 colonne stato, drag per cambiare stato; 13) Suono notifica — beep Web Audio per ordini fermi >48h (1 volta per sessione); 14) PWA offline — service worker con cache-first per asset e network-first per API, manifest.json; 15) Tema scuro — toggle con persistenza localStorage. **Nuovi file:** `public/sw.js`, `public/manifest.json` |
 | **1.8.0** | 2026-05-22 | **Sicurezza:** protezione XSS completa (escape HTML su tutti i dati utente renderizzati con innerHTML); backup .db sicuro in WAL mode (usa `db.backup()` su file temporaneo); validazione foto (solo `data:image/`); `newId()` con `crypto.randomBytes` (64 bit di entropia); validazione acconto server-side ricalcola totale dalle voci. **Bug fix:** `_ordineFoto.map is not a function` (normalizzazione stringa/array); query LIKE su JSON sostituita con `json_each()`; PUT clienti restituisce dati reali dal DB; `raccogliVoci()` segnala errore se righe senza lavorazione selezionata; rimosso dead code (listener change su hidden input). **UX:** tasto Escape chiude i modali; loading spinner durante caricamento dati; conferma chiusura modale se il form ha modifiche non salvate; `aria-label` su tutti i pulsanti emoji (accessibilità); navigazione mobile con scroll orizzontale. **Modifica stato ordine:** select colorato con icone nel modal modifica (nascosto in creazione); colore sfondo/bordo cambia dinamicamente in base allo stato selezionato. **Codice:** alert() rimpiazzati con toast showError() |
 | **1.7.0** | 2026-05-22 | **Ricerca globale:** barra nell'header con ricerca live tra clienti, ordini e lavorazioni; risultati cliccabili. **Notifiche dashboard:** alert automatico per ordini fermi da più di 48h con link diretto. **Foto ordine:** upload immagini (max 2MB) con preview e rimozione; salvate come base64 nel DB. **Gestione acconti/caparre:** campo dedicato nel modal ordine, calcolo resto in tempo reale, info visibile nelle card. **Backup da interfaccia:** pulsanti in dashboard per download .db e export JSON. **Conferma cambio cliente:** in modifica ordine, richiesta conferma se si cambia il cliente associato. **Fix:** prezzo lavorazioni non sovrascrive il prezzo salvato nell'ordine; cognome obbligatorio; bici visibile subito dopo selezione cliente in nuovo ordine; nome bici via JOIN SQL (sempre aggiornato). **API:** `GET /api/backup` e `GET /api/backup/json`. **DB:** nuove colonne `acconto` e `foto` su ordini (migrazione automatica) |
@@ -1227,4 +1241,4 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-*🚲 CicloDesk v1.9.0 — Gestionale per ciclo officina Cerica Bikelab*
+*🚲 CicloDesk v1.9.1 — Gestionale per ciclo officina Cerica Bikelab*

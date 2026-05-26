@@ -137,9 +137,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-view-kanban').classList.add('active');
     UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery(), getOrdiniFilterExtra()).catch(showError);
   });
-  document.getElementById('search-storico').addEventListener('input', e =>
-    UI.filtraStorico(e.target.value)
-  );
+  let _searchStoricoTimeout = null;
+  document.getElementById('search-storico').addEventListener('input', e => {
+    clearTimeout(_searchStoricoTimeout);
+    _searchStoricoTimeout = setTimeout(() => UI.filtraStorico(e.target.value), 200);
+  });
 
   // ── Ricerca globale ───────────────────────────────────────────
   let _searchGlobaleTimeout = null;
@@ -373,6 +375,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') UI.closeAllModals();
 
+    // ── Help shortcut ─────────────────────────────────────────
+    if (e.key === '?' && !e.ctrlKey && !e.metaKey && !document.querySelector('.modal:not(.hidden)') && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+      document.getElementById('modal-shortcuts').classList.remove('hidden');
+      document.getElementById('overlay').classList.remove('hidden');
+      return;
+    }
+
     // ── Shortcut tastiera (#11) ───────────────────────────────
     if (!e.ctrlKey && !e.metaKey) return;
     const key = e.key.toLowerCase();
@@ -414,6 +423,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   // Ripristina tema salvato
   applyTheme(localStorage.getItem('ciclo-theme') || 'light');
+
+  // ── Pulsante Help shortcut ────────────────────────────────────
+  document.getElementById('btn-help-shortcuts').addEventListener('click', () => {
+    document.getElementById('modal-shortcuts').classList.remove('hidden');
+    document.getElementById('overlay').classList.remove('hidden');
+  });
 
   // ── Submit Cliente ────────────────────────────────────────────
   document.getElementById('form-cliente').addEventListener('submit', async e => {

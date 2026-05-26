@@ -701,6 +701,26 @@ textarea:focus {
     z-index: 2;
 }
 
+/* ── Kbd (shortcut help) ──────────────────────────────────── */
+kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: .8rem;
+    font-family: inherit;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+#modal-shortcuts td {
+    padding: .45rem .5rem;
+    border-bottom: 1px solid var(--border);
+}
+#modal-shortcuts td:first-child {
+    white-space: nowrap;
+    padding-right: 1.5rem;
+}
+
 /* ── Storico Cliente ──────────────────────────────────────── */
 .storico-header {
     display: flex;

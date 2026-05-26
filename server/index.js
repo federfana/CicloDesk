@@ -6,7 +6,35 @@ const fs      = require('fs');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Rate Limiter semplice (in-memory) ──────────────────────────
+const _rateMap = new Map();
+const RATE_WINDOW = 60_000;  // 1 minuto
+const RATE_MAX    = 120;     // max richieste per finestra
+
+function rateLimiter(req, res, next) {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  let entry = _rateMap.get(ip);
+  if (!entry || now - entry.start > RATE_WINDOW) {
+    entry = { start: now, count: 0 };
+    _rateMap.set(ip, entry);
+  }
+  entry.count++;
+  if (entry.count > RATE_MAX) {
+    return res.status(429).json({ error: 'Troppe richieste, riprova tra un minuto.' });
+  }
+  next();
+}
+// Pulizia periodica mappa (ogni 5 min)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of _rateMap) {
+    if (now - entry.start > RATE_WINDOW) _rateMap.delete(ip);
+  }
+}, 300_000);
+
 app.use(express.json({ limit: '10mb' }));
+app.use('/api', rateLimiter);
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ── Route API ──────────────────────────────────────────────────
