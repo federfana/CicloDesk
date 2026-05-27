@@ -383,11 +383,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Shortcut tastiera (#11) ───────────────────────────────
-    // Su macOS Cmd+key è intercettato da Chrome; usiamo Alt/Option+key come alternativa
-    const isMod = e.ctrlKey || e.metaKey || e.altKey;
-    if (!isMod) return;
-    const key = e.key.toLowerCase();
-    if (['f', 'd', 'n', 's'].includes(key) && (e.ctrlKey || e.altKey)) {
+    // Ctrl+key su tutte le piattaforme; Alt/Option+key come alternativa su macOS
+    if (!e.ctrlKey && !e.altKey) return;
+    const code = e.code; // tasto fisico (non influenzato da Option su macOS)
+    const map = { KeyF: 'f', KeyD: 'd', KeyN: 'n', KeyS: 's' };
+    const key = map[code];
+    if (key) {
       e.preventDefault();
       if (key === 'f') {
         document.getElementById('search-globale').focus();
