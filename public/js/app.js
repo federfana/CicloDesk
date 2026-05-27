@@ -383,25 +383,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Shortcut tastiera (#11) ───────────────────────────────
-    if (!e.ctrlKey && !e.metaKey) return;
+    // Su macOS Cmd+key è intercettato da Chrome; usiamo Alt/Option+key come alternativa
+    const isMod = e.ctrlKey || e.metaKey || e.altKey;
+    if (!isMod) return;
     const key = e.key.toLowerCase();
-    if (['f', 'd', 'n', 's'].includes(key)) e.preventDefault();
-    if (key === 'f') {
-      document.getElementById('search-globale').focus();
-    } else if (key === 'd') {
-      showView('dashboard');
-    } else if (key === 'n') {
-      // Apri nuovo in base a vista corrente
-      switch (currentView) {
-        case 'clienti': UI.apriModalCliente().catch(showError); break;
-        case 'ordini': document.getElementById('btn-nuovo-ordine').click(); break;
-        case 'catalogo': UI.apriModalLavorazione().catch(showError); break;
-        default: document.getElementById('btn-nuovo-ordine').click(); break;
+    if (['f', 'd', 'n', 's'].includes(key) && (e.ctrlKey || e.altKey)) {
+      e.preventDefault();
+      if (key === 'f') {
+        document.getElementById('search-globale').focus();
+      } else if (key === 'd') {
+        showView('dashboard');
+      } else if (key === 'n') {
+        switch (currentView) {
+          case 'clienti': UI.apriModalCliente().catch(showError); break;
+          case 'ordini': document.getElementById('btn-nuovo-ordine').click(); break;
+          case 'catalogo': UI.apriModalLavorazione().catch(showError); break;
+          default: document.getElementById('btn-nuovo-ordine').click(); break;
+        }
+      } else if (key === 's') {
+        const openModal = document.querySelector('.modal:not(.hidden) form');
+        if (openModal) openModal.requestSubmit();
       }
-    } else if (key === 's') {
-      // Salva form attivo se modale aperta
-      const openModal = document.querySelector('.modal:not(.hidden) form');
-      if (openModal) openModal.requestSubmit();
     }
   });
 
