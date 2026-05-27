@@ -1341,6 +1341,12 @@ body.dark header {
     border-bottom-color: #334155;
 }
 
+body.dark .header-logo {
+    background: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
 body.dark header h1 {
     color: #e2e8f0;
     border-left-color: #475569;
