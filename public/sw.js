@@ -36,12 +36,17 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API (con scadenza cache), cache-first for static
+// Fetch: network-first for API GET, passthrough for mutations, cache-first for static
 self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // API calls: network-first con fallback a cache (max 5 min)
+  // Non intercettare richieste non-GET alle API (POST/PUT/DELETE)
+  if (url.pathname.startsWith('/api/') && request.method !== 'GET') {
+    return; // lascia passare direttamente al network
+  }
+
+  // API GET calls: network-first con fallback a cache (max 5 min)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request)
