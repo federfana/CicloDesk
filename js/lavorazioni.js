@@ -18,7 +18,7 @@ const LavorazioniService = (() => {
     { id: 'lav_011', nome: 'Sostituzione copertone',     prezzo: 14.00, descrizione: 'Senza costo ricambio' },
     { id: 'lav_012', nome: 'Revisione movimento centrale',prezzo: 22.00, descrizione: '' },
     { id: 'lav_013', nome: 'Altra lavorazione',          prezzo: 0.00,  descrizione: 'Inserire dettaglio nelle note' },
-    { id: 'lav_014', nome: 'sostituzione pastiglie',prezzo: 10.00, descrizione: '' },
+    { id: 'lav_014', nome: 'Sostituzione pastiglie',prezzo: 10.00, descrizione: '' },
   ];
 
   /** Inizializza il catalogo con i default se vuoto. */
