@@ -32,6 +32,7 @@ body {
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
+    padding-bottom: 28px;
 }
 
 /* ── Header & Nav ─────────────────────────────────────────── */
@@ -1323,6 +1324,39 @@ h3 {
     border-radius: 6px;
     font-size: .85rem;
 }
+
+/* ── DB Sync Bar ──────────────────────────────────────────── */
+#db-sync-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface, #f8fafc);
+    border-top: 1px solid var(--border, #e2e8f0);
+    padding: 4px 16px;
+    font-size: .75rem;
+    color: var(--muted, #94a3b8);
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    z-index: 10;
+}
+
+#db-sync-bar:empty {
+    display: none;
+}
+
+#db-sync-bar .sync-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
+#db-sync-bar .sync-dot.on  { background: #22c55e; }
+#db-sync-bar .sync-dot.off { background: #94a3b8; }
 
 /* ── Dark Theme (#15) ─────────────────────────────────────── */
 body.dark {

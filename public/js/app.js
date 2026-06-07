@@ -577,4 +577,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => { });
   }
+
+  // ── DB Sync status bar ────────────────────────────────────────
+  async function updateSyncBar() {
+    try {
+      const res = await fetch('/api/db-info');
+      if (!res.ok) return;
+      const info = await res.json();
+      const bar = document.getElementById('db-sync-bar');
+      if (!bar) return;
+      const mod = info.lastModified ? new Date(info.lastModified) : null;
+      const modStr = mod ? mod.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      let html = `<span>📁 DB aggiornato: ${modStr}</span>`;
+      if (info.syncEnabled) {
+        const syncStr = info.lastSync ? new Date(info.lastSync).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : 'in attesa';
+        html += `<span><span class="sync-dot ${info.lastSync ? 'on' : 'off'}"></span>Sync cloud: ${syncStr}</span>`;
+      }
+      bar.innerHTML = html;
+    } catch { /* offline */ }
+  }
+  updateSyncBar();
+  setInterval(updateSyncBar, 60_000); // aggiorna ogni minuto
 });

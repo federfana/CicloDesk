@@ -139,13 +139,46 @@ app.post('/api/import/json', (req, res) => {
   }
 });
 
+// ── DB Info ────────────────────────────────────────────────────
+const DB_PATH     = path.join(__dirname, '..', 'data', 'officina.db');
+const SYNC_FOLDER = process.env.SYNC_FOLDER || '';
+
+app.get('/api/db-info', (_req, res) => {
+  let lastModified = null, size = 0;
+  try {
+    const stat = fs.statSync(DB_PATH);
+    lastModified = stat.mtime.toISOString();
+    size = stat.size;
+  } catch {}
+  res.json({ lastModified, size, syncEnabled: !!SYNC_FOLDER, lastSync: app.locals._lastSync || null });
+});
+
 // ── Fallback SPA ───────────────────────────────────────────────
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
+// ── Sync cloud ─────────────────────────────────────────────────
+const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minuti
+
+function syncToCloud() {
+  if (!SYNC_FOLDER) return;
+  try {
+    if (!fs.existsSync(SYNC_FOLDER)) fs.mkdirSync(SYNC_FOLDER, { recursive: true });
+    const db = require('./db');
+    db.pragma('wal_checkpoint(PASSIVE)');
+    fs.copyFileSync(DB_PATH, path.join(SYNC_FOLDER, 'officina.db'));
+    app.locals._lastSync = new Date().toISOString();
+    console.log(`   ☁️  Sync cloud: ${new Date().toLocaleTimeString()}`);
+  } catch (e) {
+    console.error('   ⚠️  Errore sync cloud:', e.message);
+  }
+}
+
+let _syncTimer = null;
+
 // ── Avvio ──────────────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   const nets  = os.networkInterfaces();
   const ipLan = Object.values(nets)
     .flat()
@@ -154,5 +187,27 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('\n🚲  CicloDesk avviato!\n');
   console.log(`   💻  PC locale  → http://localhost:${PORT}`);
   console.log(`   📱  Telefono   → http://${ipLan}:${PORT}`);
+  if (SYNC_FOLDER) {
+    console.log(`   ☁️  Sync cloud → ${SYNC_FOLDER} (ogni 5 min)`);
+    _syncTimer = setInterval(syncToCloud, SYNC_INTERVAL);
+  }
   console.log('\n   (tutti i dispositivi devono essere sulla stessa rete Wi-Fi)\n');
 });
+
+// ── Chiusura pulita ────────────────────────────────────────────
+function shutdown() {
+  console.log('\n⏹️  Chiusura CicloDesk...');
+  if (_syncTimer) clearInterval(_syncTimer);
+  server.close(() => {
+    const db = require('./db');
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    db.close();
+    console.log('   Database chiuso correttamente.');
+    syncToCloud(); // ultimo sync prima di uscire
+    process.exit(0);
+  });
+  // Forza chiusura dopo 5 secondi se le connessioni non si chiudono
+  setTimeout(() => process.exit(0), 5000);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

@@ -21,8 +21,9 @@
 12. [Backup e ripristino](#12-backup-e-ripristino)
 13. [Procedura di aggiornamento senza perdita dati](#13-procedura-di-aggiornamento-senza-perdita-dati)
 14. [Risoluzione problemi](#14-risoluzione-problemi)
-15. [Aggiornamenti futuri consigliati](#15-aggiornamenti-futuri-consigliati)
-16. [Note di versione](#16-note-di-versione)
+15. [Sincronizzazione cloud (multi-postazione)](#15-sincronizzazione-cloud-multi-postazione)
+16. [Aggiornamenti futuri consigliati](#16-aggiornamenti-futuri-consigliati)
+17. [Note di versione](#17-note-di-versione)
 
 ---
 
@@ -1205,7 +1206,87 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-## 15. Aggiornamenti futuri consigliati
+## 15. Sincronizzazione cloud (multi-postazione)
+
+CicloDesk supporta la sincronizzazione del database tra due postazioni (es. officina e casa) tramite Google Drive, Dropbox o OneDrive. Il meccanismo copia automaticamente il file `officina.db` da/verso una cartella cloud sincronizzata.
+
+### Prerequisiti
+
+1. Installa **Google Drive for Desktop** (o Dropbox / OneDrive) su entrambi i PC
+2. Installa CicloDesk normalmente su entrambi i PC
+3. Configura il percorso della cartella cloud nello script di avvio
+
+### Configurazione Windows (`start.bat`)
+
+Apri `start.bat` e modifica la riga `SYNC_FOLDER`:
+
+```batch
+set SYNC_FOLDER=C:\Users\TuoNome\Google Drive\CicloDesk
+```
+
+Altri esempi:
+```batch
+set SYNC_FOLDER=C:\Users\TuoNome\Dropbox\CicloDesk
+set SYNC_FOLDER=C:\Users\TuoNome\OneDrive\CicloDesk
+```
+
+### Configurazione Mac/Linux (`start.sh`)
+
+Apri `start.sh` e modifica la riga `SYNC_FOLDER`:
+
+```bash
+SYNC_FOLDER="$HOME/Library/CloudStorage/GoogleDrive-tuaemail/Il mio Drive/CicloDesk"
+```
+
+### Come funziona
+
+```
+AVVIO (start.bat / start.sh)
+  ├── Confronta la data del DB locale con quello nel cloud
+  ├── Se il cloud è più recente → scarica e sovrascrive il locale
+  └── Avvia il server CicloDesk
+
+IN ESECUZIONE
+  └── Ogni 5 minuti → copia automatica del DB nella cartella cloud
+
+CHIUSURA (Ctrl+C)
+  ├── Chiude il database (WAL checkpoint)
+  ├── Ultima copia su cloud
+  └── Il servizio cloud sincronizza in background
+```
+
+### Indicatore di stato
+
+In basso a destra nell'app compare una barra di stato:
+
+- **📁 DB aggiornato: 07/06/2026, 14:30** — ultima modifica del database
+- **🟢 Sync cloud: 14:35** — ultimo salvataggio automatico nella cartella cloud (visibile solo se `SYNC_FOLDER` è configurato)
+
+L'indicatore si aggiorna ogni minuto.
+
+### Struttura file
+
+Nella cartella cloud viene salvato **solo il database**, non tutto il progetto:
+
+```
+Google Drive/CicloDesk/
+  └── officina.db        ← unico file sincronizzato
+```
+
+### ⚠️ Regole importanti
+
+| Regola | Motivo |
+|---|---|
+| **Mai usare due postazioni contemporaneamente** | SQLite non supporta accesso da più PC — i dati si sovrascrivono |
+| **Chiudere sempre con Ctrl+C** | Il salvataggio sul cloud avviene alla chiusura |
+| **Aspettare la sincronizzazione cloud** | Dopo la chiusura, attendere qualche secondo prima di aprire sull'altro PC |
+| **Lascia `SYNC_FOLDER` vuoto per disattivare** | Se non serve il sync, non configurare nulla — tutto funziona come prima |
+
+> 💡 Se hai bisogno di accesso simultaneo da più postazioni, usa la soluzione **Tailscale**: un solo PC fa da server e tutti gli altri accedono via browser. Vedi la sezione "Accesso da fuori rete" nel README.
+
+---
+
+## 16. Aggiornamenti futuri consigliati
 
 | Funzionalità | Priorità | Descrizione |
 |---|---|---|
@@ -1214,7 +1295,8 @@ const PORT = process.env.PORT || 3001;
 | **Rate limiting API** | — | ✅ Implementato in v1.9.1 (120 req/min per IP) |
 | **Cache API con scadenza** | — | ✅ Implementato in v1.9.1 (TTL 5 min) |
 | **Paginazione ordini** | — | ✅ Implementato in v1.9.1 (50 per pagina + "Carica altri") |
-| **Backup automatico su cloud** | 🟡 Media | Copia automatica su Google Drive o Dropbox |
+| **Sync cloud multi-postazione** | — | ✅ Implementato in v1.9.2 (Google Drive / Dropbox / OneDrive) |
+| **Graceful shutdown** | — | ✅ Implementato in v1.9.2 (WAL checkpoint + chiusura DB) |
 | **Notifiche pronto-ritiro** | 🟡 Media | Pulsante “Notifica WhatsApp” (gratuito, link `wa.me`) o SMS/email via API Twilio/nodemailer |
 | **Statistiche mensili** | 🟢 Bassa | Grafici incassi e lavorazioni più frequenti |
 | **Numero telaio bici** | 🟢 Bassa | Campo seriale telaio aggiuntivo nella scheda bici |
@@ -1223,10 +1305,11 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-## 16. Note di versione
+## 17. Note di versione
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.9.2** | 2026-06-07 | **Sincronizzazione cloud:** sync automatico del database via Google Drive / Dropbox / OneDrive; download all'avvio se il cloud è più recente, upload alla chiusura e ogni 5 minuti; configurabile in `start.bat` / `start.sh` con variabile `SYNC_FOLDER`; endpoint `GET /api/db-info` per stato DB. **Indicatore sync:** barra di stato in basso a destra con data ultima modifica DB e ultimo sync cloud (pallino verde). **Graceful shutdown:** chiusura pulita del database con WAL checkpoint prima della copia; handler `SIGINT`/`SIGTERM` in `server/index.js`. **Fix:** shortcut tastiera usano `e.code` (compatibile con Option su macOS); Service Worker non intercetta più POST/PUT/DELETE (fix "Failed to fetch" su Windows); logo leggibile in dark mode (sfondo bianco con border-radius) |
 | **1.9.1** | 2026-05-26 | **Sicurezza e performance:** 1) Rate limiting API — max 120 req/min per IP con risposta 429; 2) Service Worker cache con scadenza — risposte API scadono dopo 5 min (cache separata `ciclodesk-api-v1`); 3) Paginazione ordini — server supporta `?limit=&offset=&stato=&clienteId=`, frontend mostra 50 ordini alla volta con pulsante "Carica altri"; 4) Pulsante ⌨️ guida shortcut in header; 5) Tasto `?` apre la guida scorciatoie (solo fuori da input). **Fix:** shortcut `?` ora ignora i campi input/textarea; versione corretta in stampa (v1.9.0); warning rosso in tempo reale se acconto > totale; debounce 200ms su ricerca storico |
 | **1.9.0** | 2026-05-25 | **15 nuove funzionalità:** 1) Toast ovunque — tutti gli alert() rimpiazzati; 2) Ordinamento liste — clienti alfabetici, ordini per data desc; 3) Filtri ordini avanzati — per cliente, data da/a; 4) Badge contatore voci — numero lavorazioni visibile su ogni card ordine; 5) Doppio-click protezione — pulsanti Salva disabilitati durante submit; 6) Animazioni modali — fade-in/slide-up CSS; 7) Empty state illustrato — SVG dedicato per ogni sezione vuota; 8) Badge contatore nav — "Clienti (N)", "Ordini (N)" nella navigazione; 9) Breadcrumb — percorso con icona sotto l'header; 10) Responsive cards tablet — griglia a 2 colonne su tablet, 3 per catalogo desktop; 11) Shortcut tastiera — Ctrl+N nuovo, Ctrl+S salva, Ctrl+F cerca, Ctrl+D dashboard; 12) Kanban drag & drop — vista alternativa ordini con 4 colonne stato, drag per cambiare stato; 13) Suono notifica — beep Web Audio per ordini fermi >48h (1 volta per sessione); 14) PWA offline — service worker con cache-first per asset e network-first per API, manifest.json; 15) Tema scuro — toggle con persistenza localStorage. **Nuovi file:** `public/sw.js`, `public/manifest.json` |
 | **1.8.0** | 2026-05-22 | **Sicurezza:** protezione XSS completa (escape HTML su tutti i dati utente renderizzati con innerHTML); backup .db sicuro in WAL mode (usa `db.backup()` su file temporaneo); validazione foto (solo `data:image/`); `newId()` con `crypto.randomBytes` (64 bit di entropia); validazione acconto server-side ricalcola totale dalle voci. **Bug fix:** `_ordineFoto.map is not a function` (normalizzazione stringa/array); query LIKE su JSON sostituita con `json_each()`; PUT clienti restituisce dati reali dal DB; `raccogliVoci()` segnala errore se righe senza lavorazione selezionata; rimosso dead code (listener change su hidden input). **UX:** tasto Escape chiude i modali; loading spinner durante caricamento dati; conferma chiusura modale se il form ha modifiche non salvate; `aria-label` su tutti i pulsanti emoji (accessibilità); navigazione mobile con scroll orizzontale. **Modifica stato ordine:** select colorato con icone nel modal modifica (nascosto in creazione); colore sfondo/bordo cambia dinamicamente in base allo stato selezionato. **Codice:** alert() rimpiazzati con toast showError() |
@@ -1241,4 +1324,4 @@ const PORT = process.env.PORT || 3001;
 
 ---
 
-*🚲 CicloDesk v1.9.1 — Gestionale per ciclo officina Cerica Bikelab*
+*🚲 CicloDesk v1.9.2 — Gestionale per ciclo officina Cerica Bikelab*
