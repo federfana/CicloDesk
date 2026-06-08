@@ -35,6 +35,8 @@ sync_download() {
       if [ "$CLOUD_TS" -gt "$LOCAL_TS" ]; then
         echo " [SYNC] Il database cloud è più recente - scarico..."
         cp "$SYNC_FOLDER/officina.db" "$DB_LOCAL"
+        # Elimina file WAL/SHM per evitare corruzione
+        rm -f "${DB_LOCAL}-wal" "${DB_LOCAL}-shm"
         echo " [SYNC] Database aggiornato dal cloud."
       else
         echo " [SYNC] Il database locale è già aggiornato."

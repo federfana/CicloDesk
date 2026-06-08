@@ -39,13 +39,17 @@ IF NOT "%SYNC_FOLDER%"=="" (
       echo  [SYNC] Database scaricato dal cloud.
     ) ELSE (
       echo  [SYNC] Confronto versioni...
-      :: Usa forfiles per ottenere date affidabili in formato confrontabile
-      for %%A in ("data\officina.db") do set LOCAL_SIZE=%%~zA
-      for %%B in ("%SYNC_FOLDER%\officina.db") do set CLOUD_SIZE=%%~zB
-      :: Usa xcopy /D per confronto date affidabile (copia solo se source è più recente)
-      echo n | xcopy /D "%SYNC_FOLDER%\officina.db" "data\officina.db" >nul 2>&1
-      IF %ERRORLEVEL% EQU 0 (
+      :: robocopy /XO copia solo se il source (cloud) è più recente del dest (locale)
+      :: Exit code: 0=nessuna copia, 1=file copiato, >=8=errore
+      robocopy "%SYNC_FOLDER%" "data" officina.db /XO /R:0 /W:0 /NJH /NJS /NDL /NFL >nul 2>&1
+      set RC=%ERRORLEVEL%
+      IF %RC% EQU 1 (
         echo  [SYNC] Il database cloud e' piu' recente - aggiornato.
+        :: Elimina file WAL/SHM per evitare corruzione
+        IF EXIST "data\officina.db-wal" del "data\officina.db-wal"
+        IF EXIST "data\officina.db-shm" del "data\officina.db-shm"
+      ) ELSE IF %RC% GEQ 8 (
+        echo  [SYNC] ERRORE durante il confronto - uso database locale.
       ) ELSE (
         echo  [SYNC] Il database locale e' gia' aggiornato.
       )

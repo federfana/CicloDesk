@@ -165,20 +165,6 @@ app.get('*', (_req, res) => {
 
 // ── Sync cloud ─────────────────────────────────────────────────
 
-function syncToCloud() {
-  if (!SYNC_FOLDER) return;
-  try {
-    if (!fs.existsSync(SYNC_FOLDER)) fs.mkdirSync(SYNC_FOLDER, { recursive: true });
-    const db = require('./db');
-    db.pragma('wal_checkpoint(TRUNCATE)');
-    fs.copyFileSync(DB_PATH, path.join(SYNC_FOLDER, 'officina.db'));
-    app.locals._lastSync = new Date().toISOString();
-    console.log(`   ☁️  Sync cloud: ${new Date().toLocaleTimeString()}`);
-  } catch (e) {
-    console.error('   ⚠️  Errore sync cloud:', e.message);
-  }
-}
-
 // ── Avvio ──────────────────────────────────────────────────────
 const server = app.listen(PORT, '0.0.0.0', () => {
   const nets  = os.networkInterfaces();
@@ -201,9 +187,18 @@ function shutdown() {
   server.close(() => {
     const db = require('./db');
     db.pragma('wal_checkpoint(TRUNCATE)');
+    // Sync PRIMA di chiudere il DB (syncToCloud non fa più checkpoint)
+    if (SYNC_FOLDER) {
+      try {
+        if (!fs.existsSync(SYNC_FOLDER)) fs.mkdirSync(SYNC_FOLDER, { recursive: true });
+        fs.copyFileSync(DB_PATH, path.join(SYNC_FOLDER, 'officina.db'));
+        console.log(`   ☁️  Database salvato su: ${SYNC_FOLDER}`);
+      } catch (e) {
+        console.error('   ⚠️  Errore sync cloud:', e.message);
+      }
+    }
     db.close();
     console.log('   Database chiuso correttamente.');
-    syncToCloud(); // unico sync: alla chiusura
     process.exit(0);
   });
   // Forza chiusura dopo 5 secondi se le connessioni non si chiudono
