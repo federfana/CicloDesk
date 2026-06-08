@@ -23,6 +23,9 @@ router.get('/', (req, res) => {
   const conditions = [];
   const params = [];
 
+  // Escludi ordini nel cestino
+  conditions.push('o.deletedAt IS NULL');
+
   if (stato) {
     conditions.push('o.stato = ?');
     params.push(stato);
@@ -64,6 +67,19 @@ router.get('/', (req, res) => {
   } else {
     res.json(data);
   }
+});
+
+// GET /api/ordini/cestino — ordini eliminati (ultimi 30 giorni)
+router.get('/cestino/lista', (_req, res) => {
+  const rows = db.prepare(`
+    SELECT o.*,
+      TRIM(COALESCE(c.nome, '') || ' ' || COALESCE(c.cognome, '')) AS clienteNome
+    FROM ordini o
+    LEFT JOIN clienti c ON c.id = o.clienteId
+    WHERE o.deletedAt IS NOT NULL
+    ORDER BY o.deletedAt DESC
+  `).all();
+  res.json(rows.map(parse));
 });
 
 // GET /api/ordini/:id
@@ -136,10 +152,14 @@ router.put('/:id', (req, res) => {
   if (!Array.isArray(voci) || voci.length === 0) return res.status(400).json({ error: 'Almeno una lavorazione obbligatoria' });
   const totaleCalcolato = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
   if (parseFloat(acconto) > totaleCalcolato) return res.status(400).json({ error: 'Acconto non può superare il totale' });
-  // Imposta dataUscita solo quando si consegna
-  const dataUscitaFinal = statoFinal === 'consegnata'
-    ? (dataUscita || new Date().toISOString())
-    : null;
+  // Imposta dataUscita solo quando si consegna; la preserva se torna indietro
+  let dataUscitaFinal;
+  if (statoFinal === 'consegnata') {
+    dataUscitaFinal = dataUscita || existing.dataUscita || new Date().toISOString();
+  } else {
+    // Preserva la data di consegna storica (non cancellare se era consegnata prima)
+    dataUscitaFinal = existing.dataUscita || null;
+  }
 
   db.prepare(`
     UPDATE ordini
@@ -155,8 +175,20 @@ router.put('/:id', (req, res) => {
   res.json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
 });
 
-// DELETE /api/ordini/:id
+// DELETE /api/ordini/:id (soft delete → cestino)
 router.delete('/:id', (req, res) => {
+  db.prepare('UPDATE ordini SET deletedAt = ? WHERE id = ?').run(new Date().toISOString(), req.params.id);
+  res.json({ ok: true });
+});
+
+// POST /api/ordini/:id/ripristina — ripristina dal cestino
+router.post('/:id/ripristina', (req, res) => {
+  db.prepare('UPDATE ordini SET deletedAt = NULL WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// DELETE /api/ordini/:id/permanente — eliminazione definitiva
+router.delete('/:id/permanente', (req, res) => {
   db.prepare('DELETE FROM ordini WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });

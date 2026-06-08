@@ -105,6 +105,7 @@
             <option value="consegnata">📦 Consegnati</option>
             <option value="consegnata_non_pagato">📦❗ Consegnati NON pagati</option>
             <option value="consegnata_pagato">📦✅ Consegnati pagati</option>
+            <option value="cestino">🗑 Cestino</option>
           </select>
         </label>
       </div>
@@ -236,11 +237,11 @@
           <span>Pagato</span>
         </label>
         <div class="form-grid" style="margin-top:.5rem">
-          <label>Acconto / Caparra €
+          <label>Anticipo versato €
             <input type="number" id="ordine-acconto" min="0" step="0.01" placeholder="0.00" />
           </label>
           <div class="acconto-info">
-            <span class="card-sub" id="ordine-resto-label"></span>
+            <span class="card-sub" id="ordine-resto-label">Resto = Totale − Anticipo</span>
           </div>
         </div>
         <div class="modal-actions">

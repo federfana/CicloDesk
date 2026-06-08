@@ -225,6 +225,35 @@ const UI = (() => {
     ]);
     const clientiMap = Object.fromEntries(clienti.map(c => [c.id, c]));
 
+    // ── Cestino: vista speciale ──
+    if (filtro === 'cestino') {
+      const cestino = await OrdiniService.getCestino();
+      const container = document.getElementById('ordini-list');
+      const kanbanContainer = document.getElementById('ordini-kanban');
+      if (kanbanContainer) kanbanContainer.classList.add('hidden');
+      if (!cestino.length) {
+        container.innerHTML = emptyState('Il cestino è vuoto.', 'ordini');
+        return;
+      }
+      container.innerHTML = `<p class="cestino-info">🗑 Ordini eliminati. Puoi ripristinarli o eliminarli definitivamente.</p>` +
+        cestino.map(o => {
+          const delDate = o.deletedAt ? fmtDate(o.deletedAt) : '';
+          return `
+          <div class="card stato-deleted">
+            <div class="card-row">
+              <span class="card-title">👤 ${esc(o.clienteNome || 'Cliente rimosso')}</span>
+              <span class="card-sub">Eliminato: ${delDate}</span>
+            </div>
+            <span class="card-sub">${fmt(o.totale || 0)} — ${badgeStato(o.stato)}</span>
+            <div class="card-actions">
+              <button class="btn btn-sm btn-primary" data-action="ripristina-ordine" data-id="${o.id}">↩ Ripristina</button>
+              <button class="btn btn-sm btn-danger" data-action="del-ordine-permanente" data-id="${o.id}">🗑 Elimina definitivamente</button>
+            </div>
+          </div>`;
+        }).join('');
+      return;
+    }
+
     // Popola select filtro cliente (#3)
     const selCliente = document.getElementById('filter-ordini-cliente');
     if (selCliente && selCliente.options.length <= 1) {
@@ -317,7 +346,7 @@ const UI = (() => {
             ${o.dataUscita ? '&nbsp;|&nbsp; Uscita: ' + fmtDate(o.dataUscita) : ''}
           </span>
           ${o.note ? `<span class="card-sub">📝 ${esc(o.note)}</span>` : ''}
-          <span class="card-sub">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}${o.acconto ? ` — Acconto: ${fmt(o.acconto)} (Resto: ${fmt(Math.max(0, o.totale - o.acconto))})` : ''}</span>
+          <span class="card-sub">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}${o.acconto ? ` — Anticipo: ${fmt(o.acconto)} → Resto: ${fmt(Math.max(0, o.totale - o.acconto))}` : ''}</span>
           <div>${vociHtml || '<span class="card-sub">Nessuna lavorazione</span>'}</div>
           <div class="card-row">
             <strong>${fmt(o.totale)}</strong>
@@ -795,14 +824,14 @@ const UI = (() => {
     const restoLabel = document.getElementById('ordine-resto-label');
     if (restoLabel) {
       if (acconto > 0 && acconto > tot) {
-        restoLabel.textContent = `⚠️ Acconto (${fmt(acconto)}) supera il totale (${fmt(tot)})!`;
+        restoLabel.textContent = `⚠️ Anticipo (${fmt(acconto)}) supera il totale (${fmt(tot)})!`;
         restoLabel.style.color = '#dc2626';
       } else if (acconto > 0) {
         const resto = Math.max(0, tot - acconto);
-        restoLabel.textContent = `Acconto: ${fmt(acconto)} — Resta da saldare: ${fmt(resto)}`;
+        restoLabel.textContent = `Resto da saldare: ${fmt(tot)} − ${fmt(acconto)} = ${fmt(resto)}`;
         restoLabel.style.color = '';
       } else {
-        restoLabel.textContent = '';
+        restoLabel.textContent = `Resto da saldare: ${fmt(tot)}`;
         restoLabel.style.color = '';
       }
     }
@@ -969,7 +998,10 @@ const UI = (() => {
     clienti.filter(c =>
       [c.nome, c.cognome, c.telefono, c.email].filter(Boolean).join(' ').toLowerCase().includes(q)
     ).slice(0, 5).forEach(c => {
-      hits.push({ icon: '👤', label: [c.nome, c.cognome].filter(Boolean).join(' '), sub: c.telefono || c.email || '', action: 'edit-cliente', id: c.id });
+      const ordiniAperti = ordini.filter(o => o.clienteId === c.id && o.stato !== 'consegnata').length;
+      const subParts = [c.telefono || c.email || ''];
+      if (ordiniAperti > 0) subParts.push(`${ordiniAperti} ordini aperti`);
+      hits.push({ icon: '👤', label: [c.nome, c.cognome].filter(Boolean).join(' '), sub: subParts.filter(Boolean).join(' · '), action: 'edit-cliente', id: c.id });
     });
 
     // Ordini
@@ -983,7 +1015,11 @@ const UI = (() => {
       );
     }).slice(0, 5).forEach(o => {
       const c = clientiMap[o.clienteId];
-      hits.push({ icon: '📋', label: `Ordine — ${c ? [c.nome, c.cognome].filter(Boolean).join(' ') : '?'}`, sub: o.biciNome || fmtDate(o.dataIngresso), action: 'edit-ordine', id: o.id });
+      const giorniIn = Math.floor((Date.now() - new Date(o.dataIngresso).getTime()) / 86400000);
+      const subParts = [badgeStato(o.stato), fmt(o.totale)];
+      if (o.stato !== 'consegnata' && giorniIn > 0) subParts.push(`${giorniIn}gg in officina`);
+      else if (o.biciNome) subParts.push(o.biciNome);
+      hits.push({ icon: '📋', label: `Ordine — ${c ? [c.nome, c.cognome].filter(Boolean).join(' ') : '?'}`, sub: subParts.join(' · '), action: 'edit-ordine', id: o.id, html: true });
     });
 
     // Lavorazioni catalogo
@@ -1000,7 +1036,7 @@ const UI = (() => {
         `<div class="global-search-item" data-action="${h.action}" data-id="${h.id}">
           <span class="global-search-icon">${h.icon}</span>
           <span class="global-search-label">${esc(h.label)}</span>
-          <span class="global-search-sub">${esc(h.sub)}</span>
+          <span class="global-search-sub">${h.html ? h.sub : esc(h.sub)}</span>
         </div>`
       ).join('');
     }

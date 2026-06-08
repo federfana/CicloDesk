@@ -50,9 +50,12 @@ router.put('/:id', (req, res) => {
 // DELETE /api/clienti/:id
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
-  db.prepare('DELETE FROM ordini  WHERE clienteId = ?').run(id);
-  db.prepare('DELETE FROM bici    WHERE clienteId = ?').run(id);
-  db.prepare('DELETE FROM clienti WHERE id = ?').run(id);
+  const deleteCliente = db.transaction((clienteId) => {
+    db.prepare('DELETE FROM ordini  WHERE clienteId = ?').run(clienteId);
+    db.prepare('DELETE FROM bici    WHERE clienteId = ?').run(clienteId);
+    db.prepare('DELETE FROM clienti WHERE id = ?').run(clienteId);
+  });
+  deleteCliente(id);
   res.json({ ok: true });
 });
 

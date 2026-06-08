@@ -1,4 +1,6 @@
 @echo off
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
 echo.
 echo  CicloDesk - Avvio server...
 echo.
@@ -42,13 +44,13 @@ IF NOT "%SYNC_FOLDER%"=="" (
       :: robocopy /XO copia solo se il source (cloud) è più recente del dest (locale)
       :: Exit code: 0=nessuna copia, 1=file copiato, >=8=errore
       robocopy "%SYNC_FOLDER%" "data" officina.db /XO /R:0 /W:0 /NJH /NJS /NDL /NFL >nul 2>&1
-      set RC=%ERRORLEVEL%
-      IF %RC% EQU 1 (
+      set RC=!ERRORLEVEL!
+      IF !RC! EQU 1 (
         echo  [SYNC] Il database cloud e' piu' recente - aggiornato.
         :: Elimina file WAL/SHM per evitare corruzione
         IF EXIST "data\officina.db-wal" del "data\officina.db-wal"
         IF EXIST "data\officina.db-shm" del "data\officina.db-shm"
-      ) ELSE IF %RC% GEQ 8 (
+      ) ELSE IF !RC! GEQ 8 (
         echo  [SYNC] ERRORE durante il confronto - uso database locale.
       ) ELSE (
         echo  [SYNC] Il database locale e' gia' aggiornato.

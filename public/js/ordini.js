@@ -99,6 +99,24 @@ const OrdiniService = (() => {
     return DB.remove('ordini', id);
   }
 
+  async function getCestino() {
+    const res = await fetch('/api/ordini/cestino/lista');
+    if (!res.ok) throw new Error('Errore server ' + res.status);
+    return res.json();
+  }
+
+  async function ripristina(id) {
+    const res = await fetch(`/api/ordini/${id}/ripristina`, { method: 'POST' });
+    if (!res.ok) throw new Error('Errore server ' + res.status);
+    return res.json();
+  }
+
+  async function eliminaDefinitivamente(id) {
+    const res = await fetch(`/api/ordini/${id}/permanente`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Errore server ' + res.status);
+    return res.json();
+  }
+
   function calcolaIncasso(ordini) {
     return ordini.reduce((s, o) => s + (o.totale || 0), 0);
   }
@@ -107,5 +125,6 @@ const OrdiniService = (() => {
     STATI,
     getAll, getPaginated, findById, getByCliente, getAperti, getChiusiOggi,
     salva, avanza, riapri, togglePagato, elimina, calcolaIncasso,
+    getCestino, ripristina, eliminaDefinitivamente,
   };
 })();

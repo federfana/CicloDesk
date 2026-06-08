@@ -231,8 +231,26 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-backup-db').addEventListener('click', () => {
     window.location.href = '/api/backup';
   });
-  document.getElementById('btn-backup-json').addEventListener('click', () => {
-    window.location.href = '/api/backup/json';
+  document.getElementById('btn-backup-json').addEventListener('click', async () => {
+    const password = prompt('🔒 Scegli una password per proteggere il backup:');
+    if (!password) return;
+    if (password.length < 4) { showError('La password deve avere almeno 4 caratteri.'); return; }
+    try {
+      const res = await fetch('/api/backup/json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'ciclo-backup.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showSuccess('✅ Backup scaricato (protetto da password)');
+    } catch (err) { showError(err.message); }
   });
 
   // ── Import JSON ───────────────────────────────────────────────
@@ -246,6 +264,12 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
+      // Se il backup è protetto, chiedi la password
+      if (data._auth) {
+        const password = prompt('🔒 Questo backup è protetto. Inserisci la password:');
+        if (!password) { e.target.value = ''; return; }
+        data.password = password;
+      }
       const res = await fetch('/api/import/json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -332,10 +356,22 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'edit-ordine':
           await UI.apriModalOrdine(id); break;
         case 'del-ordine':
-          if (confirm('Eliminare questo ordine?')) {
+          if (confirm('Spostare questo ordine nel cestino?')) {
             await OrdiniService.elimina(id);
             await refreshView(currentView);
-            showSuccess('✅ Ordine eliminato');
+            showSuccess('🗑 Ordine spostato nel cestino');
+          }
+          break;
+        case 'ripristina-ordine':
+          await OrdiniService.ripristina(id);
+          await refreshView(currentView);
+          showSuccess('✅ Ordine ripristinato');
+          break;
+        case 'del-ordine-permanente':
+          if (confirm('⚠ Eliminazione DEFINITIVA. Sei sicuro? Questa azione non è reversibile.')) {
+            await OrdiniService.eliminaDefinitivamente(id);
+            await refreshView(currentView);
+            showSuccess('🗑 Ordine eliminato definitivamente');
           }
           break;
         case 'toggle-pagato':

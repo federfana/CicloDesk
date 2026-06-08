@@ -62,10 +62,20 @@ app.get('/api/backup', async (_req, res) => {
   }
 });
 
-app.get('/api/backup/json', (_req, res) => {
+const crypto = require('crypto');
+function hashPassword(pw) {
+  return crypto.createHash('sha256').update(pw).digest('hex');
+}
+
+app.post('/api/backup/json', (req, res) => {
+  const { password } = req.body || {};
+  if (!password || password.length < 4) {
+    return res.status(400).json({ error: 'Password obbligatoria (minimo 4 caratteri).' });
+  }
   const db = require('./db');
   const data = {
     exportDate: new Date().toISOString(),
+    _auth: hashPassword(password),
     clienti:     db.prepare('SELECT * FROM clienti').all(),
     bici:        db.prepare('SELECT * FROM bici').all(),
     lavorazioni: db.prepare('SELECT * FROM lavorazioni').all(),
@@ -81,7 +91,13 @@ app.get('/api/backup/json', (_req, res) => {
 // ── Import da backup JSON ──────────────────────────────────────
 app.post('/api/import/json', (req, res) => {
   const db = require('./db');
-  const { clienti, bici, lavorazioni, ordini } = req.body;
+  const { password, clienti, bici, lavorazioni, ordini, _auth } = req.body;
+
+  // Verifica password
+  if (_auth) {
+    if (!password) return res.status(401).json({ error: 'Questo backup è protetto da password.' });
+    if (hashPassword(password) !== _auth) return res.status(401).json({ error: 'Password errata.' });
+  }
 
   if (!clienti && !bici && !lavorazioni && !ordini) {
     return res.status(400).json({ error: 'File JSON non valido: nessuna tabella trovata' });

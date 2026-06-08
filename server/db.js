@@ -5,7 +5,26 @@ const fs       = require('fs');
 const dataDir = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
 
-const db = new Database(path.join(dataDir, 'officina.db'));
+const DB_PATH = path.join(dataDir, 'officina.db');
+
+// Rimuovi WAL/SHM orfani se il DB è stato sostituito manualmente
+// (evita corruzione quando si importa un .db da un'altra macchina)
+// Elimina solo se il .db è più recente del WAL (= il .db è stato sostituito)
+const walPath = DB_PATH + '-wal';
+const shmPath = DB_PATH + '-shm';
+if (fs.existsSync(walPath) && fs.existsSync(DB_PATH)) {
+  const dbMtime  = fs.statSync(DB_PATH).mtimeMs;
+  const walMtime = fs.statSync(walPath).mtimeMs;
+  if (dbMtime > walMtime) {
+    try { fs.unlinkSync(walPath); } catch (e) { /* ignore */ }
+    if (fs.existsSync(shmPath)) {
+      try { fs.unlinkSync(shmPath); } catch (e) { /* ignore */ }
+    }
+    console.log('🧹  WAL/SHM orfani rimossi (DB sostituito).');
+  }
+}
+
+const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -73,6 +92,9 @@ if (!colonneOrdini.includes('acconto')) {
 }
 if (!colonneOrdini.includes('foto')) {
   db.exec("ALTER TABLE ordini ADD COLUMN foto TEXT DEFAULT '[]'");
+}
+if (!colonneOrdini.includes('deletedAt')) {
+  db.exec("ALTER TABLE ordini ADD COLUMN deletedAt TEXT DEFAULT NULL");
 }
 
 // ── Seed lavorazioni default (solo se tabella vuota) ───────────

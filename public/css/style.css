@@ -277,6 +277,20 @@ main {
     border-left-color: #cbd5e1;
 }
 
+.card.stato-deleted {
+    border-left-color: #9ca3af;
+    opacity: 0.7;
+    background: #f9fafb;
+}
+
+.cestino-info {
+    padding: .5rem 1rem;
+    background: #fef3cd;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: .9rem;
+}
+
 .card.stato-consegnata.non-pagato {
     border-left-color: var(--danger);
     background: #fef2f2;
