@@ -147,10 +147,15 @@ app.get('/api/db-info', (_req, res) => {
   let lastModified = null, size = 0;
   try {
     const stat = fs.statSync(DB_PATH);
-    lastModified = stat.mtime.toISOString();
     size = stat.size;
+    lastModified = stat.mtime;
+    // In WAL mode, le scritture vanno nel file -wal (più recente del .db)
+    try {
+      const walStat = fs.statSync(DB_PATH + '-wal');
+      if (walStat.mtime > stat.mtime) lastModified = walStat.mtime;
+    } catch {}
   } catch {}
-  res.json({ lastModified, size, syncEnabled: !!SYNC_FOLDER, lastSync: app.locals._lastSync || null });
+  res.json({ lastModified: lastModified ? lastModified.toISOString() : null, size, syncEnabled: !!SYNC_FOLDER, lastSync: app.locals._lastSync || null });
 });
 
 // ── Fallback SPA ───────────────────────────────────────────────
