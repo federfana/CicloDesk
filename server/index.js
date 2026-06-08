@@ -164,14 +164,13 @@ app.get('*', (_req, res) => {
 });
 
 // ── Sync cloud ─────────────────────────────────────────────────
-const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minuti
 
 function syncToCloud() {
   if (!SYNC_FOLDER) return;
   try {
     if (!fs.existsSync(SYNC_FOLDER)) fs.mkdirSync(SYNC_FOLDER, { recursive: true });
     const db = require('./db');
-    db.pragma('wal_checkpoint(PASSIVE)');
+    db.pragma('wal_checkpoint(TRUNCATE)');
     fs.copyFileSync(DB_PATH, path.join(SYNC_FOLDER, 'officina.db'));
     app.locals._lastSync = new Date().toISOString();
     console.log(`   ☁️  Sync cloud: ${new Date().toLocaleTimeString()}`);
@@ -179,8 +178,6 @@ function syncToCloud() {
     console.error('   ⚠️  Errore sync cloud:', e.message);
   }
 }
-
-let _syncTimer = null;
 
 // ── Avvio ──────────────────────────────────────────────────────
 const server = app.listen(PORT, '0.0.0.0', () => {
@@ -193,8 +190,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`   💻  PC locale  → http://localhost:${PORT}`);
   console.log(`   📱  Telefono   → http://${ipLan}:${PORT}`);
   if (SYNC_FOLDER) {
-    console.log(`   ☁️  Sync cloud → ${SYNC_FOLDER} (ogni 5 min)`);
-    _syncTimer = setInterval(syncToCloud, SYNC_INTERVAL);
+    console.log(`   ☁️  Sync cloud → ${SYNC_FOLDER} (alla chiusura)`);
   }
   console.log('\n   (tutti i dispositivi devono essere sulla stessa rete Wi-Fi)\n');
 });
@@ -202,13 +198,12 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 // ── Chiusura pulita ────────────────────────────────────────────
 function shutdown() {
   console.log('\n⏹️  Chiusura CicloDesk...');
-  if (_syncTimer) clearInterval(_syncTimer);
   server.close(() => {
     const db = require('./db');
     db.pragma('wal_checkpoint(TRUNCATE)');
     db.close();
     console.log('   Database chiuso correttamente.');
-    syncToCloud(); // ultimo sync prima di uscire
+    syncToCloud(); // unico sync: alla chiusura
     process.exit(0);
   });
   // Forza chiusura dopo 5 secondi se le connessioni non si chiudono

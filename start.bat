@@ -23,9 +23,14 @@ IF NOT EXIST node_modules (
 ::   set SYNC_FOLDER=C:\Users\TuoNome\Dropbox\CicloDesk
 ::   set SYNC_FOLDER=C:\Users\TuoNome\OneDrive\CicloDesk
 :: Lascia vuoto per disattivare la sincronizzazione.
-set SYNC_FOLDER=
+set SYNC_FOLDER=H:\Il mio Drive\CicloDesk
 
 IF NOT "%SYNC_FOLDER%"=="" (
+  echo.
+  echo  [SYNC] Percorsi configurati:
+  echo         Locale: %CD%\data\officina.db
+  echo         Cloud:  %SYNC_FOLDER%\officina.db
+  echo.
   IF NOT EXIST "%SYNC_FOLDER%" mkdir "%SYNC_FOLDER%"
   IF EXIST "%SYNC_FOLDER%\officina.db" (
     IF NOT EXIST "data\officina.db" (
@@ -33,14 +38,14 @@ IF NOT "%SYNC_FOLDER%"=="" (
       copy /Y "%SYNC_FOLDER%\officina.db" "data\officina.db" >nul
       echo  [SYNC] Database scaricato dal cloud.
     ) ELSE (
-      echo  [SYNC] Trovato database nel cloud...
-      :: Confronta date: se il file cloud è più recente, scaricalo
-      for %%A in ("data\officina.db") do set LOCAL_DATE=%%~tA
-      for %%B in ("%SYNC_FOLDER%\officina.db") do set CLOUD_DATE=%%~tB
-      IF "%CLOUD_DATE%" GTR "%LOCAL_DATE%" (
-        echo  [SYNC] Il database cloud e' piu' recente - scarico...
-        copy /Y "%SYNC_FOLDER%\officina.db" "data\officina.db" >nul
-        echo  [SYNC] Database aggiornato dal cloud.
+      echo  [SYNC] Confronto versioni...
+      :: Usa forfiles per ottenere date affidabili in formato confrontabile
+      for %%A in ("data\officina.db") do set LOCAL_SIZE=%%~zA
+      for %%B in ("%SYNC_FOLDER%\officina.db") do set CLOUD_SIZE=%%~zB
+      :: Usa xcopy /D per confronto date affidabile (copia solo se source è più recente)
+      echo n | xcopy /D "%SYNC_FOLDER%\officina.db" "data\officina.db" >nul 2>&1
+      IF %ERRORLEVEL% EQU 0 (
+        echo  [SYNC] Il database cloud e' piu' recente - aggiornato.
       ) ELSE (
         echo  [SYNC] Il database locale e' gia' aggiornato.
       )

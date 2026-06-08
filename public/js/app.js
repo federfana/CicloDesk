@@ -590,8 +590,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const modStr = mod ? mod.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
       let html = `<span>📁 DB aggiornato: ${modStr}</span>`;
       if (info.syncEnabled) {
-        const syncStr = info.lastSync ? new Date(info.lastSync).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : 'in attesa';
-        html += `<span><span class="sync-dot ${info.lastSync ? 'on' : 'off'}"></span>Sync cloud: ${syncStr}</span>`;
+        const syncStr = info.lastSync ? new Date(info.lastSync).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : 'alla chiusura';
+        html += `<span><span class="sync-dot ${info.lastSync ? 'on' : 'off'}"></span>Cloud: ${syncStr}</span>`;
       }
       bar.innerHTML = html;
     } catch { /* offline */ }
