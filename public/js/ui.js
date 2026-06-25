@@ -371,6 +371,7 @@ const UI = (() => {
       const totale = o.totale || 0;
       const acconto = o.acconto || 0;
       const resto = Math.max(0, totale - acconto);
+      const consegnato = o.stato === 'consegnata';
       let pagBoxCls, pagBoxIcon, pagBoxLabel, pagBoxAmount;
       if (o.pagato) {
         pagBoxCls = 'pag-box-saldato';
@@ -384,14 +385,22 @@ const UI = (() => {
         pagBoxLabel = 'Coperto da anticipo';
         pagBoxAmount = fmt(totale);
       } else if (acconto > 0) {
+        // Acconto parziale: giallo sia prima sia dopo la consegna
         pagBoxCls = 'pag-box-parziale';
         pagBoxIcon = '🟡';
-        pagBoxLabel = `Anticipo ${fmt(acconto)} · Resto`;
+        pagBoxLabel = consegnato ? `Anticipo ${fmt(acconto)} · Resto` : `Anticipo ${fmt(acconto)} · Mancano`;
         pagBoxAmount = fmt(resto);
-      } else {
+      } else if (consegnato) {
+        // Ordine consegnato senza alcun pagamento → urgenza vera (rosso)
         pagBoxCls = 'pag-box-aperto';
-        pagBoxIcon = '⚠';
+        pagBoxIcon = '🔴';
         pagBoxLabel = 'Da incassare';
+        pagBoxAmount = fmt(totale);
+      } else {
+        // Ordine non ancora consegnato e senza acconto → semplice promemoria (neutro)
+        pagBoxCls = 'pag-box-attesa';
+        pagBoxIcon = '💶';
+        pagBoxLabel = 'Da saldare alla consegna';
         pagBoxAmount = fmt(totale);
       }
       return `
@@ -930,7 +939,7 @@ const UI = (() => {
   }
 
   function raccogliRigheCarico() {
-    return Array.from(document.querySelectorAll('#tbody-carico .carico-row')).map(tr => {
+    const righe = Array.from(document.querySelectorAll('#tbody-carico .carico-row')).map(tr => {
       const idEl = tr.querySelector('.carico-componente-id');
       const nomeEl = tr.querySelector('.carico-nome');
       const nomeText = nomeEl.value.trim();
@@ -945,6 +954,26 @@ const UI = (() => {
         prezzo_acquisto: tr.querySelector('.carico-prezzo').value === '' ? null : parseFloat(tr.querySelector('.carico-prezzo').value),
       };
     }).filter(r => (r.componenteId || r.nomeNuovo) && r.qta > 0);
+
+    // Aggregazione lato client: somma le qta delle righe che puntano allo stesso componente
+    // o allo stesso `nomeNuovo` (case-insensitive). Evita movimenti duplicati nello storico.
+    const map = new Map();
+    righe.forEach(r => {
+      const key = r.componenteId
+        ? 'id:' + r.componenteId
+        : 'nome:' + r.nomeNuovo.toLowerCase();
+      const prev = map.get(key);
+      if (prev) {
+        prev.qta += r.qta;
+        // Sul prezzo: tieni il primo valorizzato (non sovrascrivere con null)
+        if (prev.prezzo_acquisto == null && r.prezzo_acquisto != null) {
+          prev.prezzo_acquisto = r.prezzo_acquisto;
+        }
+      } else {
+        map.set(key, { ...r });
+      }
+    });
+    return Array.from(map.values());
   }
 
   async function inviaCarico() {

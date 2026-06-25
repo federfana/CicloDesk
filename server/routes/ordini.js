@@ -101,7 +101,7 @@ router.post('/', (req, res) => {
     clienteId, biciId = null,
     stato = 'accettata',
     dataIngresso, dataUscita = null,
-    note = '', voci = [], totale = 0,
+    note = '', voci = [],
     pagato = false, acconto = 0, foto = [], ricambi = [], commenti = [],
   } = req.body;
 
@@ -122,7 +122,7 @@ router.post('/', (req, res) => {
   `).run(
     id, clienteId, biciId || null, statoFinal,
     dataIngresso || new Date().toISOString(),
-    dataUscita, note.trim(), JSON.stringify(voci), totale, pagatoFinal,
+    dataUscita, note.trim(), JSON.stringify(voci), totaleCalcolato, pagatoFinal,
     parseFloat(acconto) || 0, JSON.stringify(foto), JSON.stringify(ricambi), JSON.stringify(commenti)
   );
 
@@ -143,7 +143,7 @@ router.put('/:id', (req, res) => {
     dataUscita   = existing.dataUscita,
     note         = existing.note,
     voci         = JSON.parse(existing.voci || '[]'),
-    totale       = existing.totale,
+    // `totale` non viene letto dal body: è sempre ricalcolato da voci+ricambi
     pagato       = existing.pagato,
     acconto      = existing.acconto || 0,
     foto         = JSON.parse(existing.foto || '[]'),
@@ -196,7 +196,7 @@ router.put('/:id', (req, res) => {
   `).run(
     clienteId, biciId || null, statoFinal,
     dataIngresso, dataUscitaFinal,
-    note, JSON.stringify(voci), totale, pagatoFinal,
+    note, JSON.stringify(voci), totaleCalcolato, pagatoFinal,
     parseFloat(acconto) || 0, JSON.stringify(foto), JSON.stringify(ricambiFinali), JSON.stringify(commenti), id
   );
 

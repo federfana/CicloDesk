@@ -125,6 +125,20 @@ router.get('/:id/movimenti', (req, res) => {
 
 // DELETE /api/componenti/:id
 router.delete('/:id', (req, res) => {
+  // Blocca l'eliminazione se il componente è referenziato in ricambi di ordini esistenti
+  // (incluso il cestino — `deletedAt IS NOT NULL` — per evitare di rompere link cliccabili
+  //  e l'integrità dello storico movimenti se si ripristina un ordine).
+  const ordineRef = db.prepare(`
+    SELECT o.id
+    FROM ordini o, json_each(o.ricambi) j
+    WHERE json_extract(j.value, '$.componenteId') = ?
+    LIMIT 1
+  `).get(req.params.id);
+  if (ordineRef) {
+    return res.status(409).json({
+      error: 'Componente collegato a uno o più ordini: non può essere eliminato. Modifica i ricambi degli ordini interessati o azzera la giacenza.',
+    });
+  }
   db.prepare('DELETE FROM movimenti_magazzino WHERE componenteId = ?').run(req.params.id);
   db.prepare('DELETE FROM componenti WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
@@ -139,7 +153,7 @@ router.post('/import', (req, res) => {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
   if (!rows.length) return res.status(400).json({ error: 'Nessuna riga da importare' });
 
-  const findByCodice = db.prepare("SELECT * FROM componenti WHERE LOWER(codice) = LOWER(?) AND codice <> ''");
+  const findByCodice = db.prepare("SELECT * FROM componenti WHERE LOWER(codice) = LOWER(?) AND TRIM(codice) <> ''");
   const findByNomeMarca = db.prepare("SELECT * FROM componenti WHERE LOWER(nome) = LOWER(?) AND LOWER(COALESCE(marca, '')) = LOWER(?)");
   const insertStmt = db.prepare(`
     INSERT INTO componenti (id, nome, categoria, marca, codice, prezzo_acquisto, prezzo_vendita, fornitore, giacenza, soglia_min, note)
@@ -163,11 +177,14 @@ router.post('/import', (req, res) => {
       const categoria = String(raw.categoria || '').trim();
       const marca = String(raw.marca || '').trim();
       const codice = String(raw.codice || '').trim();
-      const prezzo_acquisto = parseFloat(raw.prezzo_acquisto) || 0;
-      const prezzo_vendita = parseFloat(raw.prezzo_vendita) || 0;
+      // Distingue "prezzo non fornito" (preserva il valore esistente) da "prezzo = 0" esplicito (aggiorna a 0)
+      const hasPrezzoAcq = raw.prezzo_acquisto != null && raw.prezzo_acquisto !== '';
+      const hasPrezzoVen = raw.prezzo_vendita  != null && raw.prezzo_vendita  !== '';
+      const prezzo_acquisto = hasPrezzoAcq ? Math.max(0, parseFloat(raw.prezzo_acquisto) || 0) : 0;
+      const prezzo_vendita  = hasPrezzoVen ? Math.max(0, parseFloat(raw.prezzo_vendita)  || 0) : 0;
       const fornitore = String(raw.fornitore || '').trim();
-      const giacenza = parseInt(raw.giacenza) || 0;
-      const soglia_min = parseInt(raw.soglia_min) || 0;
+      const giacenza = Math.max(0, parseInt(raw.giacenza) || 0);
+      const soglia_min = Math.max(0, parseInt(raw.soglia_min) || 0);
       const note = String(raw.note || '').trim();
 
       let existing = null;
@@ -180,8 +197,8 @@ router.post('/import', (req, res) => {
           categoria || existing.categoria,
           marca     || existing.marca,
           codice    || existing.codice,
-          prezzo_acquisto || existing.prezzo_acquisto,
-          prezzo_vendita  || existing.prezzo_vendita,
+          hasPrezzoAcq ? prezzo_acquisto : existing.prezzo_acquisto,
+          hasPrezzoVen ? prezzo_vendita  : existing.prezzo_vendita,
           fornitore || existing.fornitore,
           soglia_min || existing.soglia_min,
           note      || existing.note,
@@ -264,7 +281,8 @@ router.post('/carico-multiplo', (req, res) => {
           componenteId = esistente.id; // riusa il componente esistente
         } else {
           componenteId = newId();
-          insertNuovo.run(componenteId, nome, prezzoNum && !isNaN(prezzoNum) ? prezzoNum : 0, fornitore || '');
+          const prezzoIniziale = (prezzoNum != null && !isNaN(prezzoNum) && prezzoNum > 0) ? prezzoNum : 0;
+          insertNuovo.run(componenteId, nome, prezzoIniziale, fornitore || '');
           creati.push({ id: componenteId, nome });
           creatoOra = true;
         }
