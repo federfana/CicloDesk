@@ -96,6 +96,12 @@ if (!colonneOrdini.includes('foto')) {
 if (!colonneOrdini.includes('deletedAt')) {
   db.exec("ALTER TABLE ordini ADD COLUMN deletedAt TEXT DEFAULT NULL");
 }
+if (!colonneOrdini.includes('ricambi')) {
+  db.exec("ALTER TABLE ordini ADD COLUMN ricambi TEXT DEFAULT '[]'");
+}
+if (!colonneOrdini.includes('commenti')) {
+  db.exec("ALTER TABLE ordini ADD COLUMN commenti TEXT DEFAULT '[]'");
+}
 
 // ── Seed lavorazioni default (solo se tabella vuota) ───────────
 const { n } = db.prepare('SELECT COUNT(*) as n FROM lavorazioni').get();

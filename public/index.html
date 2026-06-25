@@ -244,6 +244,34 @@
             <span class="card-sub" id="ordine-resto-label">Resto = Totale − Anticipo</span>
           </div>
         </div>
+        <hr />
+        <div class="lavorazioni-header">
+          <h4>📦 Ricambi da ordinare</h4>
+          <button type="button" id="btn-aggiungi-ricambio" class="btn btn-secondary">+ Aggiungi Ricambio</button>
+        </div>
+        <table id="tabella-ricambi" class="tabella-ricambi">
+          <thead>
+            <tr>
+              <th>Componente</th>
+              <th>Qtà</th>
+              <th>Stato</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-ricambi"></tbody>
+        </table>
+        <hr />
+        <div class="lavorazioni-header">
+          <h4>💬 Timeline / Note di lavorazione</h4>
+        </div>
+        <div id="ordine-timeline-aggiungi" class="hidden">
+          <div class="timeline-input-row">
+            <input type="text" id="ordine-commento-input" placeholder="Es. Chiamato fornitore, pezzo in arrivo lunedì…" />
+            <button type="button" id="btn-aggiungi-commento" class="btn btn-secondary">+ Aggiungi nota</button>
+          </div>
+          <div id="ordine-timeline-list" class="timeline-list"></div>
+        </div>
+        <p id="ordine-timeline-placeholder" class="card-sub">Salva prima l'ordine per aggiungere note progressive con timestamp.</p>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary modal-close">Annulla</button>
           <button type="submit" class="btn btn-primary">Salva Ordine</button>

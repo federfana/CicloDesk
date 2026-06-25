@@ -198,6 +198,42 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.aggiungiRigaVoce({});
   });
 
+  document.getElementById('btn-aggiungi-ricambio').addEventListener('click', () => {
+    UI.aggiungiRigaRicambio({});
+  });
+
+  // ── Timeline commenti ──────────────────────────────────────────
+  async function aggiungiCommentoOrdine() {
+    const id = UI.getOrdineCorrenteId();
+    if (!id) return;
+    const input = document.getElementById('ordine-commento-input');
+    const testo = input.value.trim();
+    if (!testo) return;
+    try {
+      const res = await OrdiniService.aggiungiCommento(id, testo);
+      input.value = '';
+      UI.renderTimeline(res.commenti);
+    } catch (err) { showError(err.message); }
+  }
+  document.getElementById('btn-aggiungi-commento').addEventListener('click', aggiungiCommentoOrdine);
+  document.getElementById('ordine-commento-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      aggiungiCommentoOrdine();
+    }
+  });
+  document.getElementById('ordine-timeline-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.btn-timeline-remove');
+    if (!btn) return;
+    const id = UI.getOrdineCorrenteId();
+    if (!id) return;
+    if (!confirm('Rimuovere questa nota?')) return;
+    try {
+      const res = await OrdiniService.rimuoviCommento(id, btn.dataset.commentoId);
+      UI.renderTimeline(res.commenti);
+    } catch (err) { showError(err.message); }
+  });
+
   // ── Upload foto ordine ────────────────────────────────────────
   document.getElementById('ordine-foto-input').addEventListener('change', async (e) => {
     const files = [...e.target.files];
@@ -518,6 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pagato: document.getElementById('ordine-pagato').checked,
         acconto: document.getElementById('ordine-acconto').value || 0,
         foto: UI.getOrdineFoto(),
+        ricambi: UI.raccogliRicambi(),
       }, voci);
 
       const storicoModal = document.getElementById('modal-storico');

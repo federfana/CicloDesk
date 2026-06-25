@@ -135,6 +135,23 @@ const UI = (() => {
       alertsContainer.innerHTML = '';
     }
 
+    // Alert ricambi in attesa
+    const ordiniConRicambi = inOfficina.filter(o =>
+      o.ricambi && o.ricambi.some(r => r.stato !== 'ricevuto')
+    );
+    if (ordiniConRicambi.length) {
+      alertsContainer.innerHTML += `
+        <div class="alert alert-info">
+          <strong>📦 ${ordiniConRicambi.length} ordin${ordiniConRicambi.length === 1 ? 'e' : 'i'} con ricambi in attesa:</strong>
+          <ul>${ordiniConRicambi.map(o => {
+        const c = clientiMap[o.clienteId];
+        const nome = c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente sconosciuto';
+        const pending = o.ricambi.filter(r => r.stato !== 'ricevuto');
+        return `<li>${esc(nome)} — ${pending.map(r => esc(r.nome) + (r.stato === 'ordinato' ? ' 🟡' : ' 🔴')).join(', ')} <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">Apri</button></li>`;
+      }).join('')}</ul>
+        </div>`;
+    }
+
     const container = document.getElementById('dashboard-in-list');
 
     if (!inOfficina.length) {
@@ -156,7 +173,9 @@ const UI = (() => {
           <span class="card-sub">
             ${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} —
             <strong>${fmt(o.totale)}</strong>
+            ${badgeCommenti(o.commenti)}
           </span>
+          ${badgeRicambi(o.ricambi)}
           <div class="card-actions">
             ${btnAvanza(o)}
             <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏ Modifica</button>
@@ -337,6 +356,7 @@ const UI = (() => {
             <span class="card-title">👤 ${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente rimosso')}</span>
             <div style="display:flex;align-items:center;gap:.3rem">
               <span class="voci-badge" title="${o.voci.length} lavorazioni">${o.voci.length}</span>
+              ${badgeCommenti(o.commenti)}
               ${badgeStato(o.stato)}
             </div>
           </div>
@@ -347,6 +367,7 @@ const UI = (() => {
           </span>
           ${o.note ? `<span class="card-sub">📝 ${esc(o.note)}</span>` : ''}
           <span class="card-sub">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}${o.acconto ? ` — Anticipo: ${fmt(o.acconto)} → Resto: ${fmt(Math.max(0, o.totale - o.acconto))}` : ''}</span>
+          ${badgeRicambi(o.ricambi)}
           <div>${vociHtml || '<span class="card-sub">Nessuna lavorazione</span>'}</div>
           <div class="card-row">
             <strong>${fmt(o.totale)}</strong>
@@ -594,7 +615,7 @@ const UI = (() => {
 
     // Foto
     const rawFoto = ordine?.foto || [];
-    _ordineFoto = Array.isArray(rawFoto) ? rawFoto : JSON.parse(rawFoto || '[]');
+    _ordineFoto = Array.isArray(rawFoto) ? [...rawFoto] : (typeof rawFoto === 'string' ? JSON.parse(rawFoto || '[]') : []);
     renderFotoPreview();
     document.getElementById('ordine-foto-input').value = '';
 
@@ -714,6 +735,23 @@ const UI = (() => {
 
     document.getElementById('tbody-voci').innerHTML = '';
     (ordine?.voci || []).forEach(v => aggiungiRigaVoce(v));
+    document.getElementById('tbody-ricambi').innerHTML = '';
+    (ordine?.ricambi || []).forEach(r => aggiungiRigaRicambio(r));
+
+    // Timeline: visibile solo in modifica (l'ordine deve esistere)
+    _ordineCorrenteId = ordine?.id || null;
+    const tlContainer = document.getElementById('ordine-timeline-aggiungi');
+    const tlPlaceholder = document.getElementById('ordine-timeline-placeholder');
+    if (ordine?.id) {
+      tlContainer.classList.remove('hidden');
+      tlPlaceholder.classList.add('hidden');
+      document.getElementById('ordine-commento-input').value = '';
+      renderTimeline(ordine.commenti || []);
+    } else {
+      tlContainer.classList.add('hidden');
+      tlPlaceholder.classList.remove('hidden');
+    }
+
     aggiornaLocale();
     openModal('modal-ordine');
   }
@@ -801,6 +839,7 @@ const UI = (() => {
 
   function renderFotoPreview() {
     const container = document.getElementById('ordine-foto-preview');
+    if (!Array.isArray(_ordineFoto)) _ordineFoto = [];
     if (!_ordineFoto.length) { container.innerHTML = ''; return; }
     container.innerHTML = _ordineFoto.map((src, i) => {
       if (typeof src !== 'string' || !src.startsWith('data:image/')) return '';
@@ -812,6 +851,7 @@ const UI = (() => {
   }
 
   function getOrdineFoto() {
+    if (!Array.isArray(_ordineFoto)) _ordineFoto = [];
     return _ordineFoto;
   }
 
@@ -859,6 +899,79 @@ const UI = (() => {
       throw new Error(`${righeInvalide} rig${righeInvalide === 1 ? 'a non valida' : 'he non valide'}: seleziona una lavorazione dal catalogo.`);
     }
     return voci;
+  }
+
+  // ── Ricambi da ordinare ───────────────────────────────────────
+  const RICAMBIO_STATI = {
+    da_ordinare: { label: '🔴 Da ordinare', cls: 'ricambio-da-ordinare' },
+    ordinato:    { label: '🟡 Ordinato',    cls: 'ricambio-ordinato' },
+    ricevuto:    { label: '🟢 Ricevuto',    cls: 'ricambio-ricevuto' },
+  };
+
+  function aggiungiRigaRicambio(ricambio = {}) {
+    const tbody = document.getElementById('tbody-ricambi');
+    const tr = document.createElement('tr');
+    const statoVal = ricambio.stato || 'da_ordinare';
+    tr.innerHTML = `
+      <td><input type="text" class="inp-ricambio-nome" placeholder="Es. Copertone 29×2.3" value="${ricambio.nome || ''}" /></td>
+      <td><input type="number" class="inp-ricambio-qta" min="1" value="${ricambio.qta || 1}" style="width:60px" /></td>
+      <td>
+        <select class="sel-ricambio-stato">
+          <option value="da_ordinare" ${statoVal === 'da_ordinare' ? 'selected' : ''}>🔴 Da ordinare</option>
+          <option value="ordinato"    ${statoVal === 'ordinato' ? 'selected' : ''}>🟡 Ordinato</option>
+          <option value="ricevuto"    ${statoVal === 'ricevuto' ? 'selected' : ''}>🟢 Ricevuto</option>
+        </select>
+      </td>
+      <td><button type="button" class="btn btn-sm btn-danger btn-rimuovi-ricambio">✕</button></td>
+    `;
+    tr.querySelector('.btn-rimuovi-ricambio').addEventListener('click', () => tr.remove());
+    tbody.appendChild(tr);
+  }
+
+  function raccogliRicambi() {
+    const ricambi = [];
+    document.querySelectorAll('#tbody-ricambi tr').forEach(tr => {
+      const nome = tr.querySelector('.inp-ricambio-nome')?.value.trim() || '';
+      if (!nome) return;
+      ricambi.push({
+        nome,
+        qta:   parseInt(tr.querySelector('.inp-ricambio-qta')?.value) || 1,
+        stato: tr.querySelector('.sel-ricambio-stato')?.value || 'da_ordinare',
+      });
+    });
+    return ricambi;
+  }
+
+  function badgeRicambi(ricambi) {
+    if (!ricambi || !ricambi.length) return '';
+    const pending = ricambi.filter(r => r.stato !== 'ricevuto').length;
+    if (pending === 0) return '<span class="ricambi-badge ricambi-ok">📦✅ Ricambi completi</span>';
+    return `<span class="ricambi-badge ricambi-pending">📦⏳ ${pending} ricambi${pending > 1 ? '' : 'o'} in attesa</span>`;
+  }
+
+  // ── Timeline commenti ─────────────────────────────────────────
+  let _ordineCorrenteId = null;
+
+  function renderTimeline(commenti = []) {
+    const container = document.getElementById('ordine-timeline-list');
+    if (!container) return;
+    if (!commenti.length) {
+      container.innerHTML = '<p class="card-sub" style="text-align:center;padding:.5rem">Nessuna nota ancora. Aggiungine una sopra.</p>';
+      return;
+    }
+    const sorted = [...commenti].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    container.innerHTML = sorted.map(c => `
+      <div class="timeline-item">
+        <div class="timeline-time">📅 ${fmtDate(c.timestamp)}</div>
+        <div class="timeline-text">${esc(c.testo)}</div>
+        <button type="button" class="btn-timeline-remove" data-commento-id="${c.id}" aria-label="Rimuovi nota" title="Rimuovi">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function badgeCommenti(commenti) {
+    if (!commenti || !commenti.length) return '';
+    return `<span class="commenti-badge" title="${commenti.length} note">💬 ${commenti.length}</span>`;
   }
 
   // ── Modal Cliente ─────────────────────────────────────────────
@@ -1152,6 +1265,8 @@ const UI = (() => {
     apriModalStorico, filtraStorico,
     apriModalBiciCliente, renderBiciList, apriModalAggiungiBici, aggiornaBiciSelect,
     aggiungiRigaVoce, raccogliVoci, getOrdineFoto, renderFotoPreview,
+    aggiungiRigaRicambio, raccogliRicambi,
+    renderTimeline, getOrdineCorrenteId: () => _ordineCorrenteId,
     openModal, closeAllModals,
     printOrdine, cercaGlobale, aggiornaLocale,
     aggiornaNavBadges, beepNotifica,

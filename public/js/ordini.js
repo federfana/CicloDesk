@@ -64,6 +64,8 @@ const OrdiniService = (() => {
       pagato:  Boolean(data.pagato),
       acconto: parseFloat(data.acconto) || 0,
       foto:    data.foto || [],
+      ricambi: data.ricambi || [],
+      commenti: data.commenti || [],
     };
     if (data.id) return DB.update('ordini', data.id, { id: data.id, ...record });
     return DB.create('ordini', record);
@@ -117,6 +119,25 @@ const OrdiniService = (() => {
     return res.json();
   }
 
+  async function aggiungiCommento(id, testo) {
+    const res = await fetch(`/api/ordini/${id}/commenti`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ testo }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Errore server ' + res.status);
+    }
+    return res.json();
+  }
+
+  async function rimuoviCommento(id, commentoId) {
+    const res = await fetch(`/api/ordini/${id}/commenti/${commentoId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Errore server ' + res.status);
+    return res.json();
+  }
+
   function calcolaIncasso(ordini) {
     return ordini.reduce((s, o) => s + (o.totale || 0), 0);
   }
@@ -126,5 +147,6 @@ const OrdiniService = (() => {
     getAll, getPaginated, findById, getByCliente, getAperti, getChiusiOggi,
     salva, avanza, riapri, togglePagato, elimina, calcolaIncasso,
     getCestino, ripristina, eliminaDefinitivamente,
+    aggiungiCommento, rimuoviCommento,
   };
 })();
