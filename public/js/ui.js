@@ -624,7 +624,7 @@ const UI = (() => {
       wrap.innerHTML = `
         <table class="tabella-movimenti">
           <thead>
-            <tr><th>Data</th><th>Tipo</th><th>Q.tà</th><th>Giac. dopo</th><th>Ordine</th><th>Motivo</th></tr>
+            <tr><th>Data</th><th>Tipo</th><th>Q.tà</th><th>Giac. dopo</th><th>Ordine</th><th>Causale / Note</th></tr>
           </thead>
           <tbody>
             ${movimenti.map(m => {
