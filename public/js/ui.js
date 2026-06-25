@@ -78,6 +78,10 @@ const UI = (() => {
   // Mappa lavorazioni per datalist: display -> {id, prezzo, nome}
   let _lavorazioniMap = {};
 
+  // Mappa componenti per autocomplete ricambi: display/id -> {id, nome, marca, giacenza, prezzo_vendita, display}
+  let _componentiMap = {};
+  let _componentiList = [];
+
   // Paginazione ordini
   let _ordiniVisibili = 50;
   let _lastOrdiniFilterKey = '';
@@ -151,6 +155,20 @@ const UI = (() => {
       }).join('')}</ul>
         </div>`;
     }
+
+    // Alert magazzino sotto soglia
+    try {
+      const sottoSoglia = await ComponentiService.getSottoSoglia();
+      if (sottoSoglia.length) {
+        alertsContainer.innerHTML += `
+          <div class="alert alert-warning">
+            <strong>🚨 ${sottoSoglia.length} component${sottoSoglia.length === 1 ? 'e' : 'i'} sotto soglia di riordino:</strong>
+            <ul>${sottoSoglia.slice(0, 10).map(c =>
+              `<li>${esc(c.nome)}${c.marca ? ' (' + esc(c.marca) + ')' : ''} — ${c.giacenza} disponibil${c.giacenza === 1 ? 'e' : 'i'} (soglia ${c.soglia_min}) <button class="btn btn-sm btn-secondary" data-action="edit-componente" data-id="${c.id}">Apri</button></li>`
+            ).join('')}${sottoSoglia.length > 10 ? `<li>… e altri ${sottoSoglia.length - 10}</li>` : ''}</ul>
+          </div>`;
+      }
+    } catch { /* magazzino non disponibile */ }
 
     const container = document.getElementById('dashboard-in-list');
 
@@ -350,6 +368,32 @@ const UI = (() => {
         `<span class="tag">${esc(v.nome)} — ${fmt(v.prezzo)}${v.note ? ` (${esc(v.note)})` : ''}</span>`
       ).join('');
       const nonPagatoCls = (o.stato === 'consegnata' && !o.pagato) ? ' non-pagato' : '';
+      const totale = o.totale || 0;
+      const acconto = o.acconto || 0;
+      const resto = Math.max(0, totale - acconto);
+      let pagBoxCls, pagBoxIcon, pagBoxLabel, pagBoxAmount;
+      if (o.pagato) {
+        pagBoxCls = 'pag-box-saldato';
+        pagBoxIcon = '✅';
+        pagBoxLabel = 'Saldato';
+        pagBoxAmount = fmt(totale);
+      } else if (acconto > 0 && resto <= 0) {
+        // Acconto ≥ totale ma non marcato pagato → di fatto saldato
+        pagBoxCls = 'pag-box-saldato';
+        pagBoxIcon = '✅';
+        pagBoxLabel = 'Coperto da anticipo';
+        pagBoxAmount = fmt(totale);
+      } else if (acconto > 0) {
+        pagBoxCls = 'pag-box-parziale';
+        pagBoxIcon = '🟡';
+        pagBoxLabel = `Anticipo ${fmt(acconto)} · Resto`;
+        pagBoxAmount = fmt(resto);
+      } else {
+        pagBoxCls = 'pag-box-aperto';
+        pagBoxIcon = '⚠';
+        pagBoxLabel = 'Da incassare';
+        pagBoxAmount = fmt(totale);
+      }
       return `
         <div class="card stato-${o.stato}${nonPagatoCls}">
           <div class="card-row">
@@ -366,11 +410,14 @@ const UI = (() => {
             ${o.dataUscita ? '&nbsp;|&nbsp; Uscita: ' + fmtDate(o.dataUscita) : ''}
           </span>
           ${o.note ? `<span class="card-sub">📝 ${esc(o.note)}</span>` : ''}
-          <span class="card-sub">${o.pagato ? '✅ Pagato' : '⚠ Non pagato'}${o.acconto ? ` — Anticipo: ${fmt(o.acconto)} → Resto: ${fmt(Math.max(0, o.totale - o.acconto))}` : ''}</span>
           ${badgeRicambi(o.ricambi)}
           <div>${vociHtml || '<span class="card-sub">Nessuna lavorazione</span>'}</div>
-          <div class="card-row">
-            <strong>${fmt(o.totale)}</strong>
+          <div class="card-row card-row-totale">
+            <div class="pag-box ${pagBoxCls}">
+              <span class="pag-box-icon">${pagBoxIcon}</span>
+              <span class="pag-box-label">${pagBoxLabel}</span>
+              <span class="pag-box-amount">${pagBoxAmount}</span>
+            </div>
             <div class="card-actions">
               ${btnAvanza(o)}
               ${o.pagato
@@ -426,6 +473,501 @@ const UI = (() => {
         ${l.descrizione ? `<span class="card-sub">${esc(l.descrizione)}</span>` : ''}
       </div>`
     ).join('');
+  }
+
+  // ── Magazzino ─────────────────────────────────────────────────
+  function stockBadge(c) {
+    const g = c.giacenza || 0;
+    const s = c.soglia_min || 0;
+    if (g <= 0)      return `<span class="stock-badge stock-out">🔴 Esaurito</span>`;
+    if (g <= s)     return `<span class="stock-badge stock-low">🟡 Scorta bassa (${g})</span>`;
+    return            `<span class="stock-badge stock-ok">🟢 ${g} disponibili</span>`;
+  }
+
+  function cardComponente(c) {
+    const meta = [c.marca, c.codice].filter(Boolean).join(' · ');
+    const g = c.giacenza || 0;
+    const s = c.soglia_min || 0;
+    let stockCls = '';
+    if (g <= 0) stockCls = ' componente-card-out';
+    else if (g <= s) stockCls = ' componente-card-low';
+    return `
+      <div class="card componente-card${stockCls}">
+        <div class="card-row">
+          <span class="card-title">🔧 ${esc(c.nome)}${g <= s ? ' <span class="riordina-flag">· da riordinare</span>' : ''}</span>
+          <div class="card-actions">
+            ${stockBadge(c)}
+            <button class="btn btn-sm btn-secondary" data-action="dec-componente" data-id="${c.id}" title="Diminuisci giacenza">−</button>
+            <button class="btn btn-sm btn-secondary" data-action="inc-componente" data-id="${c.id}" title="Aumenta giacenza">+</button>
+            <button class="btn btn-sm btn-secondary" data-action="storico-componente" data-id="${c.id}" title="Storico movimenti">📜</button>
+            <button class="btn btn-sm btn-secondary" data-action="edit-componente" data-id="${c.id}" aria-label="Modifica">✏</button>
+            <button class="btn btn-sm btn-danger"    data-action="del-componente"  data-id="${c.id}" aria-label="Elimina">🗑</button>
+          </div>
+        </div>
+        <span class="card-sub">
+          ${meta ? esc(meta) + ' · ' : ''}
+          ${c.fornitore ? '🏭 ' + esc(c.fornitore) + ' · ' : ''}
+          Soglia: ${c.soglia_min || 0}
+          ${c.prezzo_vendita ? ' · Vendita: ' + fmt(c.prezzo_vendita) : ''}
+          ${c.prezzo_acquisto ? ' · Costo: ' + fmt(c.prezzo_acquisto) : ''}
+        </span>
+        ${c.note ? `<span class="card-sub">📝 ${esc(c.note)}</span>` : ''}
+      </div>`;
+  }
+
+  async function renderMagazzino(query = '') {
+    const tutti = await ComponentiService.getAll();
+    const q = query.toLowerCase().trim();
+    const componenti = q
+      ? tutti.filter(c =>
+          (c.nome || '').toLowerCase().includes(q) ||
+          (c.categoria || '').toLowerCase().includes(q) ||
+          (c.marca || '').toLowerCase().includes(q) ||
+          (c.codice || '').toLowerCase().includes(q) ||
+          (c.fornitore || '').toLowerCase().includes(q)
+        )
+      : tutti;
+
+    // Statistiche
+    const totItems = tutti.length;
+    const sottoSoglia = tutti.filter(c => (c.giacenza || 0) <= (c.soglia_min || 0));
+    document.getElementById('magazzino-stats').innerHTML = `
+      <div class="stat-card"><span class="stat-num">${totItems}</span><span class="stat-label">Componenti</span></div>
+      <div class="stat-card ${sottoSoglia.length ? 'stat-card-non-pagato' : ''}">
+        <span class="stat-num">${sottoSoglia.length}</span>
+        <span class="stat-label">Da riordinare</span>
+      </div>
+    `;
+
+    // (Sezione duplicata "Da riordinare" rimossa: le card sotto-soglia sono evidenziate inline)
+
+    // Lista raggruppata per categoria
+    const container = document.getElementById('magazzino-list');
+    if (!componenti.length) {
+      container.innerHTML = emptyState('Nessun componente in magazzino.', 'generic');
+      return;
+    }
+
+    // Raggruppa per categoria
+    const gruppi = {};
+    componenti.forEach(c => {
+      const cat = c.categoria || '(Senza categoria)';
+      if (!gruppi[cat]) gruppi[cat] = [];
+      gruppi[cat].push(c);
+    });
+
+    const categorieOrdinate = Object.keys(gruppi).sort((a, b) => a.localeCompare(b));
+    container.innerHTML = categorieOrdinate.map(cat => `
+      <div class="magazzino-section">
+        <h3 class="magazzino-section-title">📂 ${esc(cat)} <span class="card-sub">(${gruppi[cat].length})</span></h3>
+        <div class="card-list">${gruppi[cat].map(cardComponente).join('')}</div>
+      </div>
+    `).join('');
+  }
+
+  async function apriModalComponente(componenteId = null) {
+    const c = componenteId ? await ComponentiService.findById(componenteId) : null;
+    document.getElementById('modal-componente-title').textContent = c ? 'Modifica Componente' : 'Nuovo Componente';
+    document.getElementById('componente-id').value = c?.id || '';
+    document.getElementById('componente-nome').value = c?.nome || '';
+    document.getElementById('componente-categoria').value = c?.categoria || '';
+    document.getElementById('componente-marca').value = c?.marca || '';
+    document.getElementById('componente-codice').value = c?.codice || '';
+    document.getElementById('componente-fornitore').value = c?.fornitore || '';
+    document.getElementById('componente-prezzo-acquisto').value = c?.prezzo_acquisto ? c.prezzo_acquisto.toFixed(2) : '';
+    document.getElementById('componente-prezzo-vendita').value = c?.prezzo_vendita ? c.prezzo_vendita.toFixed(2) : '';
+    document.getElementById('componente-giacenza').value = c?.giacenza ?? 0;
+    document.getElementById('componente-soglia').value = c?.soglia_min ?? 1;
+    document.getElementById('componente-note').value = c?.note || '';
+
+    // Popola datalist categorie
+    try {
+      const tutti = await ComponentiService.getAll();
+      const cats = [...new Set(tutti.map(x => x.categoria).filter(Boolean))].sort();
+      document.getElementById('categorie-list').innerHTML = cats.map(cc => `<option value="${esc(cc)}"></option>`).join('');
+    } catch { /* ignore */ }
+
+    openModal('modal-componente');
+    document.getElementById('componente-nome').focus();
+  }
+
+  // ── Storico movimenti magazzino ───────────────────────────────
+  const MOVIMENTO_LABELS = {
+    carico:         { icon: '⬆️', label: 'Carico' },
+    scarico:        { icon: '⬇️', label: 'Scarico' },
+    rettifica:      { icon: '🔧', label: 'Rettifica' },
+  };
+
+  async function apriModalMovimenti(componenteId) {
+    const c = await ComponentiService.findById(componenteId);
+    document.getElementById('movimenti-componente-nome').textContent =
+      c ? [c.nome, c.marca].filter(Boolean).join(' · ') + ` (giacenza attuale: ${c.giacenza || 0})` : '';
+    const wrap = document.getElementById('movimenti-lista-wrap');
+    wrap.innerHTML = '<p style="color:#999">Caricamento…</p>';
+    openModal('modal-movimenti');
+
+    try {
+      const movimenti = await ComponentiService.getMovimenti(componenteId);
+      if (!movimenti.length) {
+        wrap.innerHTML = '<p style="color:#999">Nessun movimento registrato.</p>';
+        return;
+      }
+      wrap.innerHTML = `
+        <table class="tabella-movimenti">
+          <thead>
+            <tr><th>Data</th><th>Tipo</th><th>Q.tà</th><th>Giac. dopo</th><th>Ordine</th><th>Motivo</th></tr>
+          </thead>
+          <tbody>
+            ${movimenti.map(m => {
+              const t = MOVIMENTO_LABELS[m.tipo] || { icon: '•', label: m.tipo };
+              const qSegno = m.quantita > 0 ? `+${m.quantita}` : String(m.quantita);
+              const qCls = m.quantita > 0 ? 'mov-pos' : (m.quantita < 0 ? 'mov-neg' : '');
+              const ordineLbl = m.ordineId
+                ? `<a href="#" data-action="apri-ordine-mov" data-id="${m.ordineId}">${esc(m.clienteNome || m.ordineId.slice(0, 6))}</a>`
+                : '—';
+              return `<tr>
+                <td>${fmtDate(m.timestamp)} ${new Date(m.timestamp).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</td>
+                <td>${t.icon} ${t.label}</td>
+                <td class="${qCls}"><strong>${qSegno}</strong></td>
+                <td>${m.giacenzaPost}</td>
+                <td>${ordineLbl}</td>
+                <td>${esc(m.motivo || '')}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    } catch (e) {
+      wrap.innerHTML = `<p style="color:#c00">Errore: ${esc(e.message)}</p>`;
+    }
+  }
+
+  // ── Import CSV componenti ─────────────────────────────────────
+  const CSV_HEADERS = ['nome', 'categoria', 'marca', 'codice', 'prezzo_acquisto', 'prezzo_vendita', 'fornitore', 'giacenza', 'soglia_min', 'note'];
+  let _csvParsedRows = [];
+
+  function parseCsv(text) {
+    if (!text || !text.trim()) return { headers: [], rows: [], errors: ['Testo vuoto'] };
+    const errors = [];
+    // Detect separatore: se prima riga ha più ; che , usa ;
+    const firstLine = text.split(/\r?\n/)[0] || '';
+    const sep = (firstLine.split(';').length > firstLine.split(',').length) ? ';' : ',';
+
+    // Parser CSV minimale con supporto quote
+    const lines = [];
+    let buffer = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') {
+        if (inQuotes && text[i + 1] === '"') { buffer += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === '\n' && !inQuotes) {
+        lines.push(buffer); buffer = '';
+      } else if (ch === '\r' && !inQuotes) {
+        // ignora \r, gestito dal \n successivo
+      } else {
+        buffer += ch;
+      }
+    }
+    if (buffer.length) lines.push(buffer);
+
+    const splitLine = (line) => {
+      const out = [];
+      let cur = '';
+      let q = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (q && line[i + 1] === '"') { cur += '"'; i++; }
+          else q = !q;
+        } else if (ch === sep && !q) {
+          out.push(cur); cur = '';
+        } else {
+          cur += ch;
+        }
+      }
+      out.push(cur);
+      return out.map(s => s.trim());
+    };
+
+    const rawHeaders = splitLine(lines.shift() || '').map(h => h.toLowerCase().replace(/^\ufeff/, ''));
+    const headers = rawHeaders;
+    const unknown = headers.filter(h => h && !CSV_HEADERS.includes(h));
+    if (unknown.length) errors.push(`Colonne ignorate: ${unknown.join(', ')}`);
+    if (!headers.includes('nome')) errors.push("Colonna 'nome' mancante");
+
+    const rows = [];
+    lines.forEach((line, i) => {
+      if (!line.trim()) return;
+      const cells = splitLine(line);
+      const obj = {};
+      headers.forEach((h, j) => { if (CSV_HEADERS.includes(h)) obj[h] = cells[j] || ''; });
+      if (!obj.nome || !obj.nome.trim()) {
+        errors.push(`Riga ${i + 2}: nome mancante`);
+        return;
+      }
+      rows.push(obj);
+    });
+
+    return { headers, rows, errors };
+  }
+
+  function renderCsvPreview(parsed) {
+    const wrap = document.getElementById('csv-preview-wrap');
+    const table = document.getElementById('csv-preview-table');
+    const count = document.getElementById('csv-preview-count');
+    const errBox = document.getElementById('csv-preview-errors');
+    const btnImport = document.getElementById('btn-csv-importa');
+
+    if (!parsed.rows.length) {
+      wrap.classList.remove('hidden');
+      count.textContent = '0';
+      table.innerHTML = '<p style="padding:1rem;color:#999">Nessuna riga valida.</p>';
+      errBox.textContent = parsed.errors.join(' · ');
+      btnImport.disabled = true;
+      return;
+    }
+    wrap.classList.remove('hidden');
+    count.textContent = parsed.rows.length;
+    errBox.textContent = parsed.errors.join(' · ');
+
+    const cols = CSV_HEADERS.filter(h => parsed.headers.includes(h));
+    const head = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
+    const body = parsed.rows.slice(0, 50).map(r =>
+      '<tr>' + cols.map(c => `<td>${esc(r[c] || '')}</td>`).join('') + '</tr>'
+    ).join('');
+    const more = parsed.rows.length > 50 ? `<p style="padding:.5rem;color:#999;margin:0">…e altre ${parsed.rows.length - 50} righe</p>` : '';
+    table.innerHTML = `<table class="csv-preview-table">${head}${body}</table>${more}`;
+    btnImport.disabled = false;
+  }
+
+  function apriModalImportCsv() {
+    _csvParsedRows = [];
+    document.getElementById('csv-file-input').value = '';
+    document.getElementById('csv-paste-input').value = '';
+    document.getElementById('csv-preview-wrap').classList.add('hidden');
+    document.getElementById('btn-csv-importa').disabled = true;
+    openModal('modal-import-csv');
+  }
+
+  async function eseguiAnteprimaCsv() {
+    const file = document.getElementById('csv-file-input').files[0];
+    let text = document.getElementById('csv-paste-input').value;
+    if (file) {
+      text = await file.text();
+      document.getElementById('csv-paste-input').value = text;
+    }
+    const parsed = parseCsv(text);
+    _csvParsedRows = parsed.rows;
+    renderCsvPreview(parsed);
+  }
+
+  async function eseguiImportCsv() {
+    if (!_csvParsedRows.length) return;
+    const btn = document.getElementById('btn-csv-importa');
+    btn.disabled = true;
+    btn.textContent = 'Importazione…';
+    try {
+      const report = await ComponentiService.importCsv(_csvParsedRows);
+      const errMsg = report.errori?.length ? `\n${report.errori.length} errori (es. ${report.errori[0]?.errore})` : '';
+      alert(`✅ Import completato\n• Creati: ${report.creati}\n• Aggiornati: ${report.aggiornati}\n• Pezzi caricati: ${report.caricati}${errMsg}`);
+      closeAllModals();
+      const q = document.getElementById('search-magazzino')?.value || '';
+      renderMagazzino(q);
+      aggiornaNavBadges();
+    } catch (e) {
+      alert('Errore import: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📥 Importa';
+    }
+  }
+
+  function downloadTemplateCsv() {
+    const sample = CSV_HEADERS.join(',') + '\n' +
+      'Copertone 29x2.3,Copertoni,Schwalbe,SCH-2901,18.50,32.00,Bike Parts,4,2,Scaffale A2\n' +
+      'Camera 26",Camere,Continental,CON-26,4.00,8.00,,10,4,\n';
+    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'template-componenti.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Modal Carico Merce ────────────────────────────────────────
+  async function apriModalCaricoMerce() {
+    // Carica componenti per autocomplete (riusa _componentiMap/_componentiList)
+    const componenti = await ComponentiService.getAll().catch(() => []);
+    _componentiMap = {};
+    _componentiList = (componenti || []).slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    _componentiList.forEach(c => {
+      const display = c.marca ? `${c.nome} · ${c.marca}` : c.nome;
+      const entry = {
+        id: c.id, nome: c.nome, marca: c.marca || '',
+        giacenza: c.giacenza || 0, prezzo_vendita: c.prezzo_vendita || 0,
+        prezzo_acquisto: c.prezzo_acquisto || 0, display,
+      };
+      _componentiMap[display] = entry;
+      _componentiMap[c.id] = entry;
+    });
+
+    document.getElementById('carico-fornitore').value = '';
+    document.getElementById('carico-motivo').value = '';
+    document.getElementById('tbody-carico').innerHTML = '';
+    aggiungiRigaCarico();
+    openModal('modal-carico');
+  }
+
+  function aggiungiRigaCarico(riga = {}) {
+    const tbody = document.getElementById('tbody-carico');
+    const tr = document.createElement('tr');
+    tr.className = 'carico-row';
+    let nomeIniziale = '';
+    if (riga.componenteId && _componentiMap[riga.componenteId]) {
+      nomeIniziale = _componentiMap[riga.componenteId].display;
+    }
+    tr.innerHTML = `
+      <td class="comp-cell" style="position:relative">
+        <input type="text" class="carico-nome" placeholder="Cerca componente…" autocomplete="off" value="${esc(nomeIniziale)}" />
+        <input type="hidden" class="carico-componente-id" value="${esc(riga.componenteId || '')}" />
+        <div class="comp-suggestions hidden"></div>
+      </td>
+      <td class="ricambio-disp-cell carico-giac-cell">—</td>
+      <td><input type="number" class="carico-qta" min="1" step="1" value="${riga.qta || 1}" style="width:80px" /></td>
+      <td><input type="number" class="carico-prezzo" min="0" step="0.01" value="${riga.prezzo_acquisto != null ? riga.prezzo_acquisto : ''}" placeholder="—" style="width:90px" /></td>
+      <td><button type="button" class="btn btn-sm btn-danger rimuovi-riga-carico">×</button></td>
+    `;
+    tbody.appendChild(tr);
+
+    const nomeInput  = tr.querySelector('.carico-nome');
+    const idInput    = tr.querySelector('.carico-componente-id');
+    const giacCell   = tr.querySelector('.carico-giac-cell');
+    const prezzoInput = tr.querySelector('.carico-prezzo');
+    const sugDiv     = tr.querySelector('.comp-suggestions');
+
+    function aggiornaGiacUI() {
+      const id = idInput.value;
+      if (id && _componentiMap[id]) {
+        const c = _componentiMap[id];
+        const cls = c.giacenza > 0 ? 'comp-ok' : 'comp-ko';
+        giacCell.innerHTML = `<span class="${cls}">${c.giacenza}</span>`;
+      } else {
+        giacCell.textContent = '—';
+      }
+    }
+    aggiornaGiacUI();
+
+    nomeInput.addEventListener('input', () => {
+      const qRaw = nomeInput.value.trim();
+      const q = qRaw.toLowerCase();
+      idInput.value = '';
+      idInput.dataset.nuovo = '';
+      aggiornaGiacUI();
+      if (!qRaw) { sugDiv.classList.add('hidden'); sugDiv.innerHTML = ''; return; }
+      const matches = _componentiList
+        .filter(c => {
+          const s = (c.nome + ' ' + (c.marca || '') + ' ' + (c.codice || '')).toLowerCase();
+          return s.includes(q);
+        })
+        .slice(0, 8);
+      const matchHtml = matches.map(c => {
+        const display = c.marca ? `${c.nome} · ${c.marca}` : c.nome;
+        const giacCls = (c.giacenza || 0) > 0 ? 'comp-ok' : 'comp-ko';
+        return `<div class="comp-suggestion" data-id="${c.id}">
+          <span>${esc(display)}</span>
+          <span class="comp-suggestion-giac ${giacCls}">${c.giacenza || 0}</span>
+        </div>`;
+      }).join('');
+      // Opzione "crea nuovo" sempre disponibile a fine lista (utile se il match non c'è o se l'utente vuole un nuovo pezzo)
+      const exactMatch = matches.some(c => (c.nome || '').toLowerCase() === q);
+      const createHtml = exactMatch ? '' : `
+        <div class="comp-suggestion comp-suggestion-new" data-new="1">
+          <span>➕ Crea nuovo: <strong>${esc(qRaw)}</strong></span>
+          <span class="comp-suggestion-giac">nuovo</span>
+        </div>`;
+      sugDiv.innerHTML = matchHtml + createHtml;
+      sugDiv.classList.remove('hidden');
+    });
+
+    sugDiv.addEventListener('mousedown', (ev) => {
+      const item = ev.target.closest('.comp-suggestion');
+      if (!item) return;
+      ev.preventDefault();
+      if (item.dataset.new === '1') {
+        // Crea nuovo componente al volo
+        const nome = nomeInput.value.trim();
+        if (!nome) return;
+        idInput.value = '';
+        idInput.dataset.nuovo = '1';
+        nomeInput.value = nome; // lascia il nome digitato
+        giacCell.innerHTML = '<span class="comp-suggestion-giac" title="Nuovo componente">nuovo</span>';
+        sugDiv.classList.add('hidden');
+        sugDiv.innerHTML = '';
+        tr.querySelector('.carico-qta')?.focus();
+        return;
+      }
+      const c = _componentiMap[item.dataset.id];
+      if (!c) return;
+      nomeInput.value = c.display;
+      idInput.value = c.id;
+      idInput.dataset.nuovo = '';
+      if (!prezzoInput.value && c.prezzo_acquisto) prezzoInput.value = c.prezzo_acquisto;
+      sugDiv.classList.add('hidden');
+      sugDiv.innerHTML = '';
+      aggiornaGiacUI();
+      tr.querySelector('.carico-qta')?.focus();
+    });
+
+    nomeInput.addEventListener('blur', () => {
+      setTimeout(() => sugDiv.classList.add('hidden'), 150);
+    });
+
+    tr.querySelector('.rimuovi-riga-carico').addEventListener('click', () => {
+      tr.remove();
+      if (!tbody.children.length) aggiungiRigaCarico();
+    });
+  }
+
+  function raccogliRigheCarico() {
+    return Array.from(document.querySelectorAll('#tbody-carico .carico-row')).map(tr => {
+      const idEl = tr.querySelector('.carico-componente-id');
+      const nomeEl = tr.querySelector('.carico-nome');
+      const nomeText = nomeEl.value.trim();
+      const hasId = !!idEl.value;
+      // Auto-fallback: se l'utente ha digitato un nome ma non ha selezionato dal menu,
+      // trattalo come nomeNuovo (il server farà dedup case-insensitive per nome).
+      const isNuovo = idEl.dataset.nuovo === '1' || (!hasId && nomeText.length > 0);
+      return {
+        componenteId: hasId ? idEl.value : '',
+        nomeNuovo: (!hasId && nomeText) ? nomeText : '',
+        qta: parseInt(tr.querySelector('.carico-qta').value) || 0,
+        prezzo_acquisto: tr.querySelector('.carico-prezzo').value === '' ? null : parseFloat(tr.querySelector('.carico-prezzo').value),
+      };
+    }).filter(r => (r.componenteId || r.nomeNuovo) && r.qta > 0);
+  }
+
+  async function inviaCarico() {
+    const fornitore = document.getElementById('carico-fornitore').value.trim();
+    const motivo    = document.getElementById('carico-motivo').value.trim();
+    const righe = raccogliRigheCarico();
+    if (!righe.length) {
+      alert('Aggiungi almeno una riga valida: nome componente + quantità (e seleziona dal menu se è un pezzo già a magazzino).');
+      return;
+    }
+    try {
+      const report = await ComponentiService.caricoMultiplo(fornitore, righe, motivo);
+      const parts = [`• Movimenti registrati: ${report.movimenti}`];
+      if (report.creati) parts.push(`• Componenti creati: ${report.creati}`);
+      if (report.errori?.length) parts.push(`• Errori: ${report.errori.length}`);
+      alert(`✅ Carico completato\n${parts.join('\n')}`);
+      closeAllModals();
+      const q = document.getElementById('search-magazzino')?.value || '';
+      renderMagazzino(q);
+      aggiornaNavBadges();
+    } catch (e) {
+      alert('Errore carico: ' + e.message);
+    }
   }
 
   // ── Storico Cliente ───────────────────────────────────────────
@@ -589,11 +1131,29 @@ const UI = (() => {
   }
 
   async function apriModalOrdine(ordineId = null, preselezionaClienteId = null) {
-    const [ordine, clienti, lavorazioni] = await Promise.all([
+    const [ordine, clienti, lavorazioni, componenti] = await Promise.all([
       ordineId ? OrdiniService.findById(ordineId) : Promise.resolve(null),
       ClientiService.getAll(),
       LavorazioniService.getAll(),
+      ComponentiService.getAll().catch(() => []),
     ]);
+
+    // Mappa componenti per autocomplete ricambi
+    _componentiMap = {};
+    _componentiList = (componenti || []).slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    _componentiList.forEach(c => {
+      const display = c.marca ? `${c.nome} · ${c.marca}` : c.nome;
+      const entry = {
+        id: c.id,
+        nome: c.nome,
+        marca: c.marca || '',
+        giacenza: c.giacenza || 0,
+        prezzo_vendita: c.prezzo_vendita || 0,
+        display,
+      };
+      _componentiMap[display] = entry;
+      _componentiMap[c.id] = entry;
+    });
 
     document.getElementById('modal-ordine-title').textContent = ordine ? 'Modifica Ordine' : 'Nuovo Ordine';
     document.getElementById('ordine-id').value = ordine?.id || '';
@@ -856,8 +1416,19 @@ const UI = (() => {
   }
 
   function aggiornaLocale() {
-    let tot = 0;
-    document.querySelectorAll('.inp-prezzo-voce').forEach(i => tot += parseFloat(i.value) || 0);
+    let subVoci = 0;
+    document.querySelectorAll('.inp-prezzo-voce').forEach(i => subVoci += parseFloat(i.value) || 0);
+    let subRicambi = 0;
+    document.querySelectorAll('#tbody-ricambi tr').forEach(tr => {
+      const qta = parseInt(tr.querySelector('.inp-ricambio-qta')?.value) || 1;
+      const prezzo = parseFloat(tr.querySelector('.inp-ricambio-prezzo')?.value) || 0;
+      subRicambi += qta * prezzo;
+    });
+    const tot = subVoci + subRicambi;
+    const elSubV = document.getElementById('subtotale-lavorazioni');
+    if (elSubV) elSubV.textContent = fmt(subVoci);
+    const elSubR = document.getElementById('subtotale-ricambi');
+    if (elSubR) elSubR.textContent = fmt(subRicambi);
     document.getElementById('totale-ordine').textContent = fmt(tot);
     // Aggiorna info resto
     const acconto = parseFloat(document.getElementById('ordine-acconto')?.value) || 0;
@@ -901,30 +1472,123 @@ const UI = (() => {
     return voci;
   }
 
-  // ── Ricambi da ordinare ───────────────────────────────────────
+  // ── Ricambi e componenti ──────────────────────────────────────
   const RICAMBIO_STATI = {
-    da_ordinare: { label: '🔴 Da ordinare', cls: 'ricambio-da-ordinare' },
-    ordinato:    { label: '🟡 Ordinato',    cls: 'ricambio-ordinato' },
-    ricevuto:    { label: '🟢 Ricevuto',    cls: 'ricambio-ricevuto' },
+    da_ordinare: { label: '🔴 Da ordinare',  cls: 'ricambio-da-ordinare' },
+    ordinato:    { label: '🟡 Ordinato',     cls: 'ricambio-ordinato' },
+    ricevuto:    { label: '🟢 In magazzino', cls: 'ricambio-ricevuto' },
   };
 
   function aggiungiRigaRicambio(ricambio = {}) {
     const tbody = document.getElementById('tbody-ricambi');
     const tr = document.createElement('tr');
     const statoVal = ricambio.stato || 'da_ordinare';
+    const prelevato = Boolean(ricambio.prelevato);
+    // Determina display iniziale
+    let nomeIniziale = ricambio.nome || '';
+    if (ricambio.componenteId && _componentiMap[ricambio.componenteId]) {
+      nomeIniziale = _componentiMap[ricambio.componenteId].display;
+    }
     tr.innerHTML = `
-      <td><input type="text" class="inp-ricambio-nome" placeholder="Es. Copertone 29×2.3" value="${ricambio.nome || ''}" /></td>
+      <td style="position:relative">
+        <input type="text" class="inp-ricambio-nome" autocomplete="off" placeholder="Cerca nel magazzino o scrivi liberamente…" value="${nomeIniziale.replace(/"/g, '&quot;')}" />
+        <input type="hidden" class="hid-ricambio-componente" value="${ricambio.componenteId || ''}" />
+        <input type="hidden" class="hid-ricambio-prelevato" value="${prelevato ? '1' : ''}" />
+        <div class="comp-suggestions hidden"></div>
+      </td>
+      <td class="ricambio-disp-cell"><span class="ricambio-disp-info"></span></td>
       <td><input type="number" class="inp-ricambio-qta" min="1" value="${ricambio.qta || 1}" style="width:60px" /></td>
+      <td><input type="number" class="inp-ricambio-prezzo" min="0" step="0.01" placeholder="0.00" value="${ricambio.prezzo != null ? parseFloat(ricambio.prezzo).toFixed(2) : ''}" style="width:80px" /></td>
       <td>
         <select class="sel-ricambio-stato">
           <option value="da_ordinare" ${statoVal === 'da_ordinare' ? 'selected' : ''}>🔴 Da ordinare</option>
           <option value="ordinato"    ${statoVal === 'ordinato' ? 'selected' : ''}>🟡 Ordinato</option>
-          <option value="ricevuto"    ${statoVal === 'ricevuto' ? 'selected' : ''}>🟢 Ricevuto</option>
+          <option value="ricevuto"    ${statoVal === 'ricevuto' ? 'selected' : ''}>🟢 In magazzino</option>
         </select>
       </td>
       <td><button type="button" class="btn btn-sm btn-danger btn-rimuovi-ricambio">✕</button></td>
     `;
-    tr.querySelector('.btn-rimuovi-ricambio').addEventListener('click', () => tr.remove());
+
+    const inpNome = tr.querySelector('.inp-ricambio-nome');
+    const hidComp = tr.querySelector('.hid-ricambio-componente');
+    const sugDiv  = tr.querySelector('.comp-suggestions');
+    const dispEl  = tr.querySelector('.ricambio-disp-info');
+
+    function aggiornaDispInfo() {
+      const id = hidComp.value;
+      if (id && _componentiMap[id]) {
+        const c = _componentiMap[id];
+        const cls = c.giacenza > 0 ? 'comp-ok' : 'comp-ko';
+        const prelevatoLbl = tr.querySelector('.hid-ricambio-prelevato').value === '1'
+          ? ' <span class="tag-scaricato" title="Già scaricato dal magazzino">scaricato</span>'
+          : '';
+        dispEl.innerHTML = `<span class="${cls}">📦 ${c.giacenza}</span>${prelevatoLbl}`;
+      } else {
+        dispEl.innerHTML = '<span class="ricambio-libero" title="Non collegato al magazzino">—</span>';
+      }
+    }
+
+    function renderCompSuggestions(query = '') {
+      const q = query.toLowerCase().trim();
+      const matches = _componentiList
+        .filter(c => {
+          if (!q) return true;
+          const hay = `${c.nome} ${c.marca || ''} ${c.codice || ''}`.toLowerCase();
+          return hay.includes(q);
+        })
+        .slice(0, 10);
+      sugDiv.innerHTML = matches
+        .map(c => {
+          const display = c.marca ? `${c.nome} · ${c.marca}` : c.nome;
+          const cls = (c.giacenza || 0) > 0 ? 'comp-ok' : 'comp-ko';
+          return `<div class="comp-suggestion" data-id="${c.id}" data-value="${display.replace(/"/g, '&quot;')}">
+            <span class="comp-suggestion-nome">${display}</span>
+            <span class="comp-suggestion-giac ${cls}">${c.giacenza || 0} disp.</span>
+          </div>`;
+        })
+        .join('');
+      sugDiv.classList.toggle('hidden', matches.length === 0);
+    }
+
+    inpNome.addEventListener('focus', () => renderCompSuggestions(inpNome.value));
+    inpNome.addEventListener('input', function () {
+      // se l'utente modifica manualmente, scollega dal componente
+      hidComp.value = '';
+      aggiornaDispInfo();
+      renderCompSuggestions(this.value);
+    });
+    inpNome.addEventListener('blur', () => {
+      setTimeout(() => sugDiv.classList.add('hidden'), 150);
+    });
+    sugDiv.addEventListener('mousedown', ev => {
+      const item = ev.target.closest('.comp-suggestion');
+      if (!item) return;
+      const c = _componentiMap[item.dataset.id];
+      inpNome.value = item.dataset.value;
+      hidComp.value = item.dataset.id;
+      sugDiv.classList.add('hidden');
+      // Precompila il prezzo di vendita se l'utente non l'ha già inserito
+      const inpPrezzo = tr.querySelector('.inp-ricambio-prezzo');
+      if (c && (!inpPrezzo.value || parseFloat(inpPrezzo.value) === 0) && c.prezzo_vendita > 0) {
+        inpPrezzo.value = parseFloat(c.prezzo_vendita).toFixed(2);
+      }
+      // Suggerisci stato 'ricevuto' se c'è giacenza disponibile
+      const selStato = tr.querySelector('.sel-ricambio-stato');
+      if (c && c.giacenza > 0 && selStato.value === 'da_ordinare') {
+        selStato.value = 'ricevuto';
+      }
+      aggiornaDispInfo();
+      aggiornaLocale();
+      ev.preventDefault();
+    });
+
+    tr.querySelector('.inp-ricambio-qta').addEventListener('input', aggiornaLocale);
+    tr.querySelector('.inp-ricambio-prezzo').addEventListener('input', aggiornaLocale);
+    tr.querySelector('.btn-rimuovi-ricambio').addEventListener('click', () => {
+      tr.remove();
+      aggiornaLocale();
+    });
+    aggiornaDispInfo();
     tbody.appendChild(tr);
   }
 
@@ -933,11 +1597,18 @@ const UI = (() => {
     document.querySelectorAll('#tbody-ricambi tr').forEach(tr => {
       const nome = tr.querySelector('.inp-ricambio-nome')?.value.trim() || '';
       if (!nome) return;
-      ricambi.push({
+      const componenteId = tr.querySelector('.hid-ricambio-componente')?.value || '';
+      const prelevato = tr.querySelector('.hid-ricambio-prelevato')?.value === '1';
+      const prezzo = parseFloat(tr.querySelector('.inp-ricambio-prezzo')?.value) || 0;
+      const r = {
         nome,
-        qta:   parseInt(tr.querySelector('.inp-ricambio-qta')?.value) || 1,
-        stato: tr.querySelector('.sel-ricambio-stato')?.value || 'da_ordinare',
-      });
+        qta:    parseInt(tr.querySelector('.inp-ricambio-qta')?.value) || 1,
+        prezzo,
+        stato:  tr.querySelector('.sel-ricambio-stato')?.value || 'da_ordinare',
+      };
+      if (componenteId) r.componenteId = componenteId;
+      if (prelevato) r.prelevato = true;
+      ricambi.push(r);
     });
     return ricambi;
   }
@@ -1261,6 +1932,9 @@ const UI = (() => {
 
   return {
     renderDashboard, renderClienti, renderOrdini, renderCatalogo,
+    renderMagazzino, apriModalComponente, apriModalMovimenti,
+    apriModalImportCsv, eseguiAnteprimaCsv, eseguiImportCsv, downloadTemplateCsv,
+    apriModalCaricoMerce, aggiungiRigaCarico, inviaCarico,
     apriModalCliente, apriModalOrdine, apriModalLavorazione,
     apriModalStorico, filtraStorico,
     apriModalBiciCliente, renderBiciList, apriModalAggiungiBici, aggiornaBiciSelect,

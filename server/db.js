@@ -75,6 +75,32 @@ db.exec(`
     pagato       INTEGER DEFAULT 0,
     FOREIGN KEY (clienteId) REFERENCES clienti(id)
   );
+
+  CREATE TABLE IF NOT EXISTS componenti (
+    id              TEXT PRIMARY KEY,
+    nome            TEXT NOT NULL,
+    categoria       TEXT DEFAULT '',
+    marca           TEXT DEFAULT '',
+    codice          TEXT DEFAULT '',
+    prezzo_acquisto REAL DEFAULT 0,
+    prezzo_vendita  REAL DEFAULT 0,
+    fornitore       TEXT DEFAULT '',
+    giacenza        INTEGER DEFAULT 0,
+    soglia_min      INTEGER DEFAULT 1,
+    note            TEXT DEFAULT '',
+    createdAt       TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS movimenti_magazzino (
+    id           TEXT PRIMARY KEY,
+    componenteId TEXT NOT NULL,
+    ordineId     TEXT DEFAULT NULL,
+    tipo         TEXT NOT NULL,
+    quantita     INTEGER NOT NULL,
+    giacenzaPost INTEGER DEFAULT 0,
+    motivo       TEXT DEFAULT '',
+    timestamp    TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // ── Migrazioni (colonne aggiunte dopo il deploy iniziale) ────────

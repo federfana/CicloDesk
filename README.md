@@ -59,12 +59,13 @@ ciclodesk/
 ├── server/
 │   ├── index.js              # Entry point — server Express
 │   ├── db.js                 # Connessione SQLite, schema, seed
-│   ├── utils.js              # Utilità condivise (newId)
+│   ├── utils.js              # Utilità condivise (newId, registraMovimento)
 │   └── routes/
 │       ├── clienti.js        # GET/POST/PUT/DELETE /api/clienti
 │       ├── ordini.js         # GET/POST/PUT/DELETE /api/ordini
 │       ├── lavorazioni.js    # GET/POST/PUT/DELETE /api/lavorazioni
-│       └── bici.js           # GET/POST/PUT/DELETE /api/bici
+│       ├── bici.js           # GET/POST/PUT/DELETE /api/bici
+│       └── componenti.js     # GET/POST/PUT/DELETE /api/componenti (magazzino)
 │
 └── public/
     ├── index.html            # Pagina principale (SPA)
@@ -80,6 +81,7 @@ ciclodesk/
         ├── clienti.js        # Logica schede clienti
         ├── bici.js           # Logica gestione bici per cliente
         ├── ordini.js         # Logica ordini di lavoro
+        ├── componenti.js     # Logica magazzino componenti
         ├── ui.js             # Rendering interfaccia e modali
         └── app.js            # Bootstrap, navigazione, eventi globali
 ```
@@ -289,11 +291,12 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 - Modifica rapida di ogni ordine direttamente dallo storico
 - Dopo il salvataggio, lo storico si riapre aggiornato (non si chiude tutto)
 
+<a id="ordini-di-lavoro"></a>
 ### Ordini di Lavoro
 - Selezione cliente + bici specifica + lavorazioni dal catalogo
 - Prezzo auto-compilato dal catalogo, modificabile voce per voce
 - **📷 Foto allegata** — upload di immagini (max 2MB) per documentare lo stato della bici all'ingresso; preview con thumbnails rimovibili
-- **💰 Gestione acconti/caparre** — campo dedicato con calcolo in tempo reale del "Resta da saldare"; info acconto visibile nelle card ordini
+- **💰 Gestione acconti/caparre** — campo dedicato con calcolo in tempo reale del "Resta da saldare"; nelle card ordini lo stato pagamento è mostrato con un **box colorato evidente** (✅ verde "Saldato" / "Coperto da anticipo", 🟡 giallo "Anticipo X · Resto Y", ⚠ rosso "Da incassare") con l'importo dovuto sempre in grassetto grande. Il pulsante "Segna pagato" toggla il flag senza alterare il valore dell'acconto registrato, così l'anticipo originale non viene mai perso.
 - **Note per voce** — ogni lavorazione nell'ordine ha un campo note dedicato
 - **4 stati** con avanzamento sequenziale tramite pulsante dedicato:
 - **Modifica stato** — select colorato nel modal modifica ordine (visibile solo in modifica, nascosto in creazione)
@@ -320,6 +323,55 @@ Nella finestra del terminale premi **`Ctrl + C`**.
 - Il prezzo viene proposto automaticamente negli ordini ma è sempre modificabile
 - **Eliminazione bloccata** se la lavorazione è presente in uno o più ordini (con conteggio)
 - Dropdown lavorazioni con suggerimenti custom (uniforme su tutti i browser)
+
+<a id="ricambi-ordine"></a>
+### 📦 Ricambi ordine *(v1.10.0 · v1.11.0)*
+- Sezione **Ricambi** dentro ogni ordine: pezzi/componenti da procurare per completare il lavoro
+- Tre stati: 🔴 **Da ordinare** · 🟡 **Ordinato** · 🟢 **In magazzino**
+- **Autocomplete dal magazzino:** scrivendo il nome compare la lista dei componenti con badge giacenza colorato (verde se disponibile, rosso se esaurito); selezione collega il ricambio al componente di magazzino e precompila il prezzo di vendita. Possibilità di testo libero per pezzi una tantum non a magazzino
+- Colonna **Disp.** in tabella + colonna **Prezzo** con calcolo automatico del subtotale ricambi (`prezzo × qta`) che concorre al totale dell'ordine e quindi alla validazione dell'acconto
+- Badge **📦⏳ N ricambi in attesa** / **📦✅ Ricambi completi** sulle card ordini
+- Banner dashboard "⚠️ N ordini in attesa di ricambi" con link diretto
+
+### 💬 Timeline commenti ordine *(v1.10.0)*
+- Sezione **Timeline** dentro ogni ordine in modifica: cronologia di note datate (cambi cliente, problemi, decisioni)
+- Aggiunta rapida da campo di testo + invio (o pulsante)
+- Eliminazione singolo commento
+- Badge conteggio commenti sulle card ordini
+
+<a id="magazzino-componenti"></a>
+### 🏭 Magazzino Componenti *(v1.10.0 · v1.11.0)*
+- Sezione **Magazzino** dedicata alla gestione di tutti i componenti / ricambi dell'officina
+- Campi per ogni componente: nome, categoria, marca, codice/SKU, fornitore, prezzo acquisto, prezzo vendita, giacenza, soglia minima, note
+- **Raggruppamento per categoria**: le card sotto soglia sono evidenziate inline (bordo giallo "scorta bassa" / rosso "esaurito" + flag *da riordinare* accanto al nome) — niente lista duplicata
+- **Statistiche:** numero componenti totali · contatore *Da riordinare* (clic visivo sulle card evidenziate)
+- Ricerca live su nome, categoria, marca, codice e fornitore
+- Datalist categorie auto-popolato dai valori già usati
+- Pulsanti rapidi per card: **−** / **+** giacenza, **📜 Storico**, **✏ Modifica**, **🗑 Elimina**
+- **Scorciatoia Ctrl+N** apre il modal Nuovo Componente quando si è nella vista Magazzino
+
+<a id="import-csv"></a>
+### 📄 Import CSV componenti *(v1.11.0)*
+- Toolbar Magazzino → **📄 Importa CSV**: file `.csv` o incolla diretto
+- Colonne riconosciute: `nome, categoria, marca, codice, prezzo_acquisto, prezzo_vendita, fornitore, giacenza, soglia_min, note`
+- Separatore auto-detect `,` o `;`, supporto quote, header obbligatorio (solo `nome` è obbligatorio per riga)
+- **Upsert intelligente**: matching prima per `codice` (case-insensitive, se valorizzato), altrimenti per `nome + marca`. Se trovato → aggiorna metadati + somma giacenza come carico; altrimenti crea nuovo componente con carico iniziale
+- Anteprima fino a 50 righe + report finale (creati / aggiornati / pezzi caricati / errori)
+- Pulsante **⬇ Scarica template CSV** con riga d'esempio
+
+<a id="carico-merce"></a>
+### 📥 Carico merce *(v1.11.0)*
+- Toolbar Magazzino → **📥 Carico merce**: registra in blocco una bolla di consegna fornitore
+- Campi fornitore + riferimento bolla, righe dinamiche con autocomplete componenti e giacenza attuale a fianco
+- Per ogni riga: quantità + prezzo acquisto opzionale (se valorizzato aggiorna il prezzo del componente e il fornitore)
+- **➕ Creazione componenti al volo:** quando il nome digitato non corrisponde a nulla in magazzino, il dropdown autocomplete propone la voce "➕ Crea nuovo: …" che genera il componente in fase di carico (categoria *Da catalogare* di default). Dedup **case-insensitive** lato server (`LOWER(nome)`): se due righe della stessa bolla — o un import precedente — usano lo stesso nome in maiuscolo/minuscolo diverso, il componente viene creato una sola volta
+- Submit → crea N movimenti `carico` in transazione con motivo `Carico merce — <fornitore>`
+
+### 📜 Movimenti di magazzino *(v1.10.0)*
+- Ogni variazione di giacenza viene registrata: **carico** / **scarico** / **rettifica** con timestamp, quantità (segno), giacenza dopo il movimento, motivo e ordine collegato
+- **Scarico automatico:** quando un ordine passa allo stato **Consegnata**, tutti i ricambi collegati a un componente e non ancora prelevati vengono scaricati dal magazzino e il movimento viene tracciato (con `ordineId` di riferimento). Una volta scaricato il ricambio è marcato come `prelevato` per evitare doppi scarichi su update successivi
+- **Modal storico movimenti** accessibile dal pulsante 📜 nella card componente: tabella ordinata per data con link cliccabile all'ordine che ha generato il movimento
+- Alert dashboard automatico "🚨 N componenti sotto soglia" con totale pezzi da riordinare
 
 ---
 
@@ -978,6 +1030,86 @@ Tutte le API accettano e restituiscono **JSON**.
 
 ---
 
+### Componenti Magazzino *(v1.10.0)*
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| `GET` | `/api/componenti` | Lista tutti i componenti |
+| `GET` | `/api/componenti/:id` | Dettaglio singolo componente |
+| `GET` | `/api/componenti/sotto-soglia/lista` | Componenti con giacenza ≤ soglia minima |
+| `GET` | `/api/componenti/:id/movimenti` | Storico movimenti (con nome cliente da JOIN) |
+| `POST` | `/api/componenti` | Crea componente |
+| `PUT` | `/api/componenti/:id` | Aggiorna componente |
+| `POST` | `/api/componenti/:id/giacenza` | Aggiusta giacenza (+/- delta oppure set assoluto) |
+| `POST` | `/api/componenti/import` | Import bulk da CSV (rows già parsate lato client) |
+| `POST` | `/api/componenti/carico-multiplo` | Registra una bolla di carico merce multi-riga |
+| `DELETE` | `/api/componenti/:id` | Elimina componente e i suoi movimenti |
+
+**Corpo POST/PUT `/api/componenti`:**
+```json
+{
+  "nome":            "Copertone 29×2.3",
+  "categoria":       "Copertoni",
+  "marca":           "Schwalbe",
+  "codice":          "SCH-2901",
+  "prezzo_acquisto": 22.00,
+  "prezzo_vendita":  35.00,
+  "fornitore":       "Bike Parts SRL",
+  "giacenza":        4,
+  "soglia_min":      2,
+  "note":            "Scaffale A2"
+}
+```
+
+**Corpo POST `/api/componenti/:id/giacenza`:**
+```json
+// modifica relativa (registra movimento 'carico' o 'scarico')
+{ "delta": -1, "motivo": "Pezzo difettoso" }
+// oppure modifica assoluta (registra movimento 'rettifica')
+{ "set": 10, "motivo": "Inventario" }
+```
+
+**Corpo POST `/api/componenti/import` *(v1.11.0)*:**
+```json
+{
+  "rows": [
+    { "nome": "Copertone 29x2.3", "categoria": "Copertoni", "marca": "Schwalbe",
+      "codice": "SCH-2901", "prezzo_acquisto": 18.50, "prezzo_vendita": 32.00,
+      "fornitore": "Bike Parts", "giacenza": 4, "soglia_min": 2, "note": "" }
+  ]
+}
+```
+- Upsert per `codice` (se presente) o `nome+marca` (case-insensitive)
+- Risposta: `{ ok, creati, aggiornati, caricati, errori: [...] }` — la `giacenza` importata diventa un movimento `carico`
+
+**Corpo POST `/api/componenti/carico-multiplo` *(v1.11.0)*:**
+```json
+{
+  "fornitore": "Bike Parts SRL",
+  "motivo":    "DDT 1234 del 25/06",
+  "righe": [
+    { "componenteId": "abc123", "qta": 5, "prezzo_acquisto": 18.50 },
+    { "componenteId": "def456", "qta": 2 }
+  ]
+}
+```
+- Per ogni riga registra un movimento `carico` con motivo `Carico merce — <fornitore>` (o `motivo` esplicito)
+- Se `prezzo_acquisto` è valorizzato aggiorna anche il prezzo del componente e il fornitore
+
+### Commenti ordine *(v1.10.0)*
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| `POST` | `/api/ordini/:id/commenti` | Aggiunge un commento alla timeline |
+| `DELETE` | `/api/ordini/:id/commenti/:commentoId` | Elimina un commento dalla timeline |
+
+**Corpo POST:**
+```json
+{ "testo": "Cliente ha richiesto cambio sella" }
+```
+
+---
+
 ## 11. Database
 
 File: `data/officina.db`
@@ -1029,7 +1161,37 @@ CREATE TABLE IF NOT EXISTS ordini (
   pagato       INTEGER DEFAULT 0,          -- 0 = non pagato, 1 = pagato
   acconto      REAL DEFAULT 0,            -- caparra/acconto versato
   foto         TEXT DEFAULT '[]',         -- array JSON di immagini base64
+  ricambi      TEXT DEFAULT '[]',         -- array JSON di ricambi {nome,qta,stato,componenteId?,prelevato?}
+  commenti     TEXT DEFAULT '[]',         -- array JSON di commenti timeline {id,testo,timestamp}
+  deletedAt    TEXT DEFAULT NULL,         -- soft delete: timestamp eliminazione (cestino)
   FOREIGN KEY (clienteId) REFERENCES clienti(id)
+);
+
+CREATE TABLE IF NOT EXISTS componenti (
+  id              TEXT PRIMARY KEY,
+  nome            TEXT NOT NULL,
+  categoria       TEXT DEFAULT '',
+  marca           TEXT DEFAULT '',
+  codice          TEXT DEFAULT '',
+  prezzo_acquisto REAL DEFAULT 0,
+  prezzo_vendita  REAL DEFAULT 0,
+  fornitore       TEXT DEFAULT '',
+  giacenza        INTEGER DEFAULT 0,
+  soglia_min      INTEGER DEFAULT 0,
+  note            TEXT DEFAULT '',
+  createdAt       TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS movimenti_magazzino (
+  id           TEXT PRIMARY KEY,
+  componenteId TEXT NOT NULL,
+  ordineId     TEXT DEFAULT NULL,         -- collegato a un ordine se scarico automatico
+  tipo         TEXT NOT NULL,             -- carico | scarico | rettifica
+  quantita     INTEGER NOT NULL,          -- positivo per carichi, negativo per scarichi
+  giacenzaPost INTEGER NOT NULL,          -- giacenza dopo il movimento (audit)
+  motivo       TEXT DEFAULT '',
+  timestamp    TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (componenteId) REFERENCES componenti(id)
 );
 ```
 
@@ -1167,6 +1329,11 @@ Apri il browser, controlla che i dati esistenti siano intatti e che le nuove fun
 | **1.4.0** | `ordini` | `pagato` | INTEGER | `0` |
 | **1.7.0** | `ordini` | `acconto` | REAL | `0` |
 | **1.7.0** | `ordini` | `foto` | TEXT | `'[]'` |
+| **1.9.3** | `ordini` | `deletedAt` | TEXT | `NULL` |
+| **1.10.0** | `ordini` | `ricambi` | TEXT | `'[]'` |
+| **1.10.0** | `ordini` | `commenti` | TEXT | `'[]'` |
+| **1.10.0** | *(nuova)* `componenti` | — | tabella | — |
+| **1.10.0** | *(nuova)* `movimenti_magazzino` | — | tabella | — |
 
 ---
 
@@ -1297,9 +1464,9 @@ Google Drive/CicloDesk/
 | **Sync cloud multi-postazione** | — | ✅ Implementato in v1.9.2 (Google Drive / Dropbox / OneDrive) |
 | **Graceful shutdown** | — | ✅ Implementato in v1.9.2 (WAL checkpoint + chiusura DB) |
 | **Notifiche pronto-ritiro** | 🟡 Media | Pulsante “Notifica WhatsApp” (gratuito, link `wa.me`) o SMS/email via API Twilio/nodemailer |
+| **Gestione magazzino ricambi** | — | ✅ Implementato in v1.10.0 (componenti, giacenze, movimenti, scarico automatico) |
 | **Statistiche mensili** | 🟢 Bassa | Grafici incassi e lavorazioni più frequenti |
 | **Numero telaio bici** | 🟢 Bassa | Campo seriale telaio aggiuntivo nella scheda bici |
-| **Gestione magazzino ricambi** | 🟢 Bassa | Scorte camere d'aria, catene, pastiglie |
 | **Deploy cloud** | 🟢 Bassa | Accesso da fuori rete (Railway, Render) |
 
 ---
@@ -1308,6 +1475,8 @@ Google Drive/CicloDesk/
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.11.0** | 2026-06-25 | **[📄 Import CSV componenti](#import-csv):** modal dedicato in Magazzino con parser inline (auto-detect separatore `,` o `;`, supporto quote), anteprima fino a 50 righe + report errori, template CSV scaricabile; **upsert intelligente** per `codice` o `nome+marca` (case-insensitive); la giacenza importata genera un movimento `carico`. **[📥 Modal Carico merce](#carico-merce):** registrazione bolla fornitore multi-riga con autocomplete componenti, quantità e prezzo acquisto opzionale (aggiorna anche prezzo + fornitore del componente); crea N movimenti `carico` in transazione. **[Creazione componenti al volo dal carico merce](#carico-merce):** dropdown autocomplete con voce "➕ Crea nuovo: …" quando il nome non è già a magazzino; dedup case-insensitive lato server (`LOWER(nome)`) per evitare duplicati. **Endpoint nuovi:** `POST /api/componenti/import` e `POST /api/componenti/carico-multiplo` (supporta `nomeNuovo` per creazione al volo). **[💰 Box stato pagamento nelle card ordine](#ordini-di-lavoro):** sostituita la riga testuale con un box colorato accanto alle azioni — verde "✅ Saldato · totale", verde "✅ Coperto da anticipo" (acconto ≥ totale), giallo "🟡 Anticipo X · Resto Y", rosso "⚠ Da incassare · totale"; importo sempre evidenziato in grassetto grande. **[💰 Prezzo ricambi → totale ordine](#ricambi-ordine):** colonna prezzo nella tabella ricambi (precompilato da `prezzo_vendita` del componente), subtotale ricambi calcolato in tempo reale, totale ordine = lavorazioni + ricambi; validazione server-side dell'acconto include i ricambi. **[UI Magazzino ripulita](#magazzino-componenti):** rimossa card "Valore magazzino" (calcolo non significativo), rimossa sezione duplicata "🚨 Da riordinare" in cima — le card sotto soglia ora sono evidenziate inline (bordo giallo/rosso + flag "da riordinare" accanto al nome) all'interno del raggruppamento per categoria. **Modal ordine riordinato:** Dati → Lavorazioni → Ricambi → Timeline → 💰 Pagamento in fondo con box totale evidenziato. **Etichetta stato ricambio "Ricevuto" → "🟢 In magazzino"** per coerenza. **Fix:** `togglePagato` ora non sovrascrive più l'`acconto` (precedente regressione faceva perdere l'anticipo originale all'attivazione del flag pagato); fallback automatico nome digitato → `nomeNuovo` nel modal carico merce (riga non più scartata silenziosamente); focus sulla riga corrente dopo selezione autocomplete (non sull'ultima riga). **Fix SQL:** sostituite double-quote con single-quote nelle nuove query SQLite (interpretate come identificatori in SQLite) |
+| **1.10.0** | 2026-06-25 | **📦 Ricambi negli ordini:** nuova sezione dentro ogni ordine per tracciare i pezzi da procurare, con stati 🔴 Da ordinare / 🟡 Ordinato / 🟢 Ricevuto; badge "📦⏳ N ricambi in attesa" sulle card; alert dashboard. **💬 Timeline commenti ordine:** cronologia di note datate dentro ogni ordine in modifica, aggiunta da campo testo (Enter o pulsante), eliminazione per singolo commento, badge conteggio sulle card; endpoint `POST /api/ordini/:id/commenti` e `DELETE /api/ordini/:id/commenti/:commentoId`. **🏭 Gestione Magazzino completa:** nuova vista "Magazzino" con CRUD componenti (nome, categoria, marca, codice, fornitore, prezzo acquisto/vendita, giacenza, soglia minima, note); raggruppamento per categoria + sezione "🚨 Da riordinare" in cima; statistiche valore totale; ricerca live; datalist categorie. **🔁 Autocomplete ricambi → magazzino:** scrivendo un ricambio nell'ordine compare la lista dei componenti con badge giacenza colorato (verde/rosso); selezione collega il ricambio al componente. **⬇️ Scarico automatico:** al passaggio dell'ordine a "Consegnata", i ricambi collegati e non ancora prelevati vengono scaricati dal magazzino con tracciamento completo del movimento (tipo, quantità, giacenza post, ordine di riferimento). **📜 Storico movimenti:** modal con tabella ordinata per data accessibile dal pulsante 📜 sulla card componente, link cliccabile all'ordine che ha generato lo scarico. **Helper server `registraMovimento`** in `utils.js` per aggiornamento atomico giacenza + insert movimento. **Nuovi file:** `server/routes/componenti.js`, `public/js/componenti.js`. **Nuove tabelle:** `componenti`, `movimenti_magazzino`. **Nuove colonne ordini:** `ricambi`, `commenti` (migrazione automatica) |
 | **1.9.3** | 2026-06-08 | **Cestino ordini (soft delete):** l'eliminazione di un ordine lo sposta nel cestino anziché cancellarlo; nuova vista "🗑 Cestino" nel filtro ordini con opzioni Ripristina ed Elimina definitivamente; endpoint `GET /api/ordini/cestino/lista`, `POST /api/ordini/:id/ripristina`, `DELETE /api/ordini/:id/permanente`; colonna `deletedAt` aggiunta automaticamente. **Ricerca globale migliorata:** risultati con contesto — clienti mostrano numero ordini aperti, ordini mostrano badge stato + totale + giorni in officina. **Label acconto più chiara:** campo rinominato "Anticipo versato €"; formula "Resto da saldare: Totale − Anticipo = X" sempre visibile nel form e nelle card ordini |
 | **1.9.2** | 2026-06-08 | **Sincronizzazione cloud:** sync del database via Google Drive / Dropbox / OneDrive; download all'avvio se il cloud è più recente, upload alla chiusura; configurabile in `start.bat` / `start.sh` con variabile `SYNC_FOLDER`; endpoint `GET /api/db-info` per stato DB. **Indicatore sync:** barra di stato in basso a destra con data ultima modifica DB e stato sync cloud. **Graceful shutdown:** chiusura pulita con WAL checkpoint → sync cloud → close DB; handler `SIGINT`/`SIGTERM`. **Confronto date affidabile:** usa `robocopy /XO` su Windows (sostituisce confronto `%~t` inaffidabile in formato italiano). **Protezione corruzione:** elimina file `-wal` e `-shm` quando si scarica un DB dal cloud. **Fix:** shortcut tastiera usano `e.code` (compatibile con Option su macOS); Service Worker non intercetta più POST/PUT/DELETE (fix "Failed to fetch" su Windows); logo leggibile in dark mode (sfondo bianco con border-radius) |
 | **1.9.1** | 2026-05-26 | **Sicurezza e performance:** 1) Rate limiting API — max 120 req/min per IP con risposta 429; 2) Service Worker cache con scadenza — risposte API scadono dopo 5 min (cache separata `ciclodesk-api-v1`); 3) Paginazione ordini — server supporta `?limit=&offset=&stato=&clienteId=`, frontend mostra 50 ordini alla volta con pulsante "Carica altri"; 4) Pulsante ⌨️ guida shortcut in header; 5) Tasto `?` apre la guida scorciatoie (solo fuori da input). **Fix:** shortcut `?` ora ignora i campi input/textarea; versione corretta in stampa (v1.9.0); warning rosso in tempo reale se acconto > totale; debounce 200ms su ricerca storico |
@@ -1324,4 +1493,4 @@ Google Drive/CicloDesk/
 
 ---
 
-*🚲 CicloDesk v1.9.3 — Gestionale per ciclo officina Cerica Bikelab*
+*🚲 CicloDesk v1.11.0 — Gestionale per ciclo officina Cerica Bikelab*

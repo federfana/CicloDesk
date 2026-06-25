@@ -303,6 +303,60 @@ main {
     font-weight: 700;
 }
 
+/* ── Box stato pagamento nella card ordine ─────────────── */
+.card-row-totale {
+    margin-top: .35rem;
+    padding-top: .55rem;
+    border-top: 1px solid var(--border);
+}
+.pag-box {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .45rem;
+    padding: .45rem .8rem;
+    border-radius: 8px;
+    font-size: .92rem;
+    border: 1px solid transparent;
+    line-height: 1.2;
+}
+.pag-box-icon { font-size: 1rem; }
+.pag-box-label { font-weight: 500; opacity: .92; }
+.pag-box-amount {
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-left: .15rem;
+}
+.pag-box-saldato {
+    background: #dcfce7;
+    color: #14532d;
+    border-color: #86efac;
+}
+.pag-box-parziale {
+    background: #fef3c7;
+    color: #78350f;
+    border-color: #fcd34d;
+}
+.pag-box-aperto {
+    background: #fee2e2;
+    color: #7f1d1d;
+    border-color: #fca5a5;
+}
+body.dark .pag-box-saldato {
+    background: #052e16;
+    color: #86efac;
+    border-color: #16a34a;
+}
+body.dark .pag-box-parziale {
+    background: #422006;
+    color: #fde68a;
+    border-color: #d97706;
+}
+body.dark .pag-box-aperto {
+    background: #450a0a;
+    color: #fca5a5;
+    border-color: #dc2626;
+}
+
 /* Compatibilità con vecchi stati */
 .card.stato-aperto {
     border-left-color: var(--warning);
@@ -576,6 +630,185 @@ label {
 .lav-suggestion:hover {
     background: var(--primary);
     color: #fff;
+}
+
+/* Autocomplete componenti (ricambi) */
+.comp-suggestions {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    right: 0;
+    width: 100%;
+    min-width: 260px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .12);
+    z-index: 999;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.comp-suggestions.hidden {
+    display: none;
+}
+
+.comp-suggestion {
+    padding: .55rem .75rem;
+    cursor: pointer;
+    font-size: .92rem;
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .75rem;
+}
+
+.comp-suggestion:hover {
+    background: var(--primary);
+    color: #fff;
+}
+
+.comp-suggestion-giac {
+    font-size: .8rem;
+    padding: .12rem .45rem;
+    border-radius: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.comp-suggestion-giac.comp-ok {
+    background: #e7f5ea;
+    color: #1f7a3b;
+}
+
+.comp-suggestion-giac.comp-ko {
+    background: #fde8e8;
+    color: #b3261e;
+}
+
+.comp-suggestion:hover .comp-suggestion-giac {
+    background: rgba(255, 255, 255, .25);
+    color: #fff;
+}
+
+.ricambio-disp-info .comp-ok { color: #1f7a3b; font-weight: 600; }
+.ricambio-disp-info .comp-ko { color: #b3261e; font-weight: 600; }
+
+/* Tabella storico movimenti */
+.tabella-movimenti {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .92rem;
+}
+
+.tabella-movimenti th,
+.tabella-movimenti td {
+    padding: .55rem .65rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.tabella-movimenti th {
+    background: #f5f5f5;
+    font-weight: 600;
+    font-size: .85rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: #555;
+}
+
+.tabella-movimenti tr:hover td {
+    background: #fafafa;
+}
+
+.tabella-movimenti .mov-pos { color: #1f7a3b; }
+.tabella-movimenti .mov-neg { color: #b3261e; }
+.tabella-movimenti a { color: var(--primary); text-decoration: none; }
+.tabella-movimenti a:hover { text-decoration: underline; }
+
+/* ── Import CSV componenti ───────────────────────────────── */
+.import-csv-help {
+  background: #f4f7fb;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  padding: .75rem 1rem;
+  font-size: .9rem;
+  line-height: 1.5;
+}
+.import-csv-help code {
+  background: #fff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #dbe3ee;
+  font-size: .85rem;
+}
+.csv-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+.csv-preview-table th,
+.csv-preview-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.csv-preview-table th {
+  background: #f0f4f9;
+  position: sticky;
+  top: 0;
+  font-weight: 600;
+}
+.csv-preview-table tr:nth-child(even) td {
+  background: #fafbfd;
+}
+
+body.dark .import-csv-help {
+  background: #1e2632;
+  border-color: #2d3748;
+}
+body.dark .import-csv-help code {
+  background: #0f1419;
+  border-color: #2d3748;
+}
+body.dark .csv-preview-table th {
+  background: #1e2632;
+}
+body.dark .csv-preview-table tr:nth-child(even) td {
+  background: #161c26;
+}
+
+/* ── Carico merce ────────────────────────────────────────── */
+.carico-row td {
+  vertical-align: middle;
+}
+.carico-giac-cell {
+  font-weight: 600;
+  text-align: center;
+}
+.comp-suggestion-new {
+  border-top: 1px dashed var(--border);
+  background: #f8fafc;
+  color: var(--primary);
+  font-weight: 500;
+}
+.comp-suggestion-new:first-child {
+  border-top: none;
+}
+.comp-suggestion-new:hover {
+  background: #e0f2fe;
+}
+body.dark .comp-suggestion-new {
+  background: #1e293b;
+}
+body.dark .comp-suggestion-new:hover {
+  background: #0c4a6e;
 }
 
 input[type="text"],
@@ -1481,6 +1714,44 @@ body.dark .lav-suggestion:hover {
     color: #0f172a;
 }
 
+body.dark .comp-suggestions {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+body.dark .comp-suggestion {
+    color: #e2e8f0;
+}
+
+body.dark .comp-suggestion:hover {
+    background: #60a5fa;
+    color: #0f172a;
+}
+
+body.dark .comp-suggestion-giac.comp-ok {
+    background: #14532d;
+    color: #86efac;
+}
+
+body.dark .comp-suggestion-giac.comp-ko {
+    background: #7f1d1d;
+    color: #fecaca;
+}
+
+body.dark .tabella-movimenti th {
+    background: #334155;
+    color: #cbd5e1;
+}
+
+body.dark .tabella-movimenti tr:hover td {
+    background: #334155;
+}
+
+body.dark .tabella-movimenti th,
+body.dark .tabella-movimenti td {
+    border-color: #475569;
+}
+
 body.dark .global-search-results {
     background: #1e293b;
     border-color: #475569;
@@ -1731,7 +2002,7 @@ body.dark .btn-secondary:hover {
     background: var(--surface);
 }
 
-/* ── Ricambi da ordinare ──────────────────────────────────── */
+/* ── Ricambi e componenti ─────────────────────────────────── */
 .tabella-ricambi {
     width: 100%;
     border-collapse: collapse;
@@ -1751,6 +2022,7 @@ body.dark .btn-secondary:hover {
 .tabella-ricambi td {
     padding: .35rem .5rem;
     border-bottom: 1px solid var(--border);
+    vertical-align: middle;
 }
 
 .tabella-ricambi input,
@@ -1765,6 +2037,83 @@ body.dark .btn-secondary:hover {
 .tabella-ricambi .inp-ricambio-nome {
     width: 100%;
     min-width: 140px;
+}
+
+/* Cella "Disp." accanto al nome */
+.ricambio-disp-cell {
+    white-space: nowrap;
+    font-size: .82rem;
+    text-align: center;
+    min-width: 70px;
+}
+
+.ricambio-disp-info .comp-ok {
+    color: #1f7a3b;
+    font-weight: 600;
+}
+
+.ricambio-disp-info .comp-ko {
+    color: #b3261e;
+    font-weight: 600;
+}
+
+.ricambio-disp-info .ricambio-libero {
+    color: #b0b0b0;
+    font-weight: 400;
+}
+
+.tag-scaricato {
+    display: inline-block;
+    font-size: .65rem;
+    font-weight: 600;
+    padding: .05rem .4rem;
+    border-radius: 8px;
+    background: #e2e8f0;
+    color: #475569;
+    margin-left: .25rem;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+}
+
+/* Sottotitolo descrittivo sotto i titoli delle sezioni */
+.section-sub {
+    margin: .1rem 0 0;
+    font-size: .8rem;
+    color: var(--muted);
+    font-weight: 400;
+}
+
+/* Box totale ordine evidenziato */
+.totale-ordine-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #f0f7ff, #e6f0ff);
+    border: 1.5px solid var(--primary, #3b82f6);
+    border-radius: 10px;
+    padding: .85rem 1.1rem;
+    margin: 1rem 0 .5rem;
+}
+
+.totale-ordine-box .totale-ordine-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.totale-ordine-box #totale-ordine {
+    font-size: 1.45rem;
+    color: var(--primary, #3b82f6);
+    font-weight: 700;
+}
+
+body.dark .totale-ordine-box {
+    background: linear-gradient(135deg, #1e3a5f, #1e293b);
+    border-color: #60a5fa;
+}
+
+body.dark .totale-ordine-box #totale-ordine {
+    color: #93c5fd;
 }
 
 .sel-ricambio-stato {
@@ -1898,4 +2247,103 @@ body.dark .ricambi-ok {
 body.dark .timeline-item {
     background: #1e293b;
     border-left-color: #60a5fa;
+}
+
+/* ── Magazzino ────────────────────────────────────────────── */
+.magazzino-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: .8rem;
+    margin-bottom: 1rem;
+}
+
+.magazzino-section {
+    margin-bottom: 1.5rem;
+}
+
+.magazzino-section-title {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-bottom: .5rem;
+    padding-bottom: .3rem;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+}
+
+.componente-card {
+    border-left: 3px solid var(--primary);
+}
+
+.componente-card-low {
+    border-left-color: #f59e0b;
+    background: linear-gradient(90deg, #fffbeb 0%, transparent 60%);
+}
+
+.componente-card-out {
+    border-left-color: #ef4444;
+    background: linear-gradient(90deg, #fef2f2 0%, transparent 60%);
+}
+
+.riordina-flag {
+    font-size: .78rem;
+    color: #b45309;
+    font-weight: 600;
+    margin-left: .3rem;
+}
+.componente-card-out .riordina-flag {
+    color: #b91c1c;
+}
+
+body.dark .componente-card-low {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.10) 0%, transparent 60%);
+}
+body.dark .componente-card-out {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.12) 0%, transparent 60%);
+}
+body.dark .riordina-flag { color: #fbbf24; }
+body.dark .componente-card-out .riordina-flag { color: #fca5a5; }
+
+.stock-badge {
+    display: inline-block;
+    font-size: .78rem;
+    padding: .2rem .55rem;
+    border-radius: 6px;
+    font-weight: 600;
+    margin-right: .3rem;
+}
+
+.stock-ok {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #22c55e;
+}
+
+.stock-low {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.stock-out {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+body.dark .stock-ok {
+    background: #052e16;
+    color: #86efac;
+    border-color: #16a34a;
+}
+
+body.dark .stock-low {
+    background: #422006;
+    color: #fde68a;
+    border-color: #d97706;
+}
+
+body.dark .stock-out {
+    background: #450a0a;
+    color: #fca5a5;
+    border-color: #dc2626;
 }

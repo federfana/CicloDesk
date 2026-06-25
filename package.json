@@ -1,6 +1,6 @@
 {
   "name": "ciclodesk",
-  "version": "1.9.3",
+  "version": "1.11.0",
   "description": "CicloDesk — Gestionale per ciclo officina",
   "main": "server/index.js",
   "scripts": {

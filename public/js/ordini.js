@@ -46,7 +46,14 @@ const OrdiniService = (() => {
   }
 
   async function salva(data, voci) {
-    const totale = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
+    const subVoci = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
+    const ricambi = (data.ricambi || []).map(r => ({
+      ...r,
+      qta:    parseInt(r.qta) || 1,
+      prezzo: parseFloat(r.prezzo) || 0,
+    }));
+    const subRicambi = ricambi.reduce((s, r) => s + (r.prezzo * r.qta), 0);
+    const totale = subVoci + subRicambi;
     const record = {
       clienteId:    data.clienteId,
       biciId:       data.biciId || null,
@@ -64,7 +71,7 @@ const OrdiniService = (() => {
       pagato:  Boolean(data.pagato),
       acconto: parseFloat(data.acconto) || 0,
       foto:    data.foto || [],
-      ricambi: data.ricambi || [],
+      ricambi,
       commenti: data.commenti || [],
     };
     if (data.id) return DB.update('ordini', data.id, { id: data.id, ...record });
@@ -94,6 +101,8 @@ const OrdiniService = (() => {
   async function togglePagato(id) {
     const o = await findById(id);
     if (!o) return null;
+    // Toggle puro del flag: NON tocca l'acconto, così non si perde l'anticipo originale.
+    // Il render della card mostra comunque "Saldato · totale" quando pagato=true.
     return DB.update('ordini', id, { ...o, pagato: !o.pagato });
   }
 

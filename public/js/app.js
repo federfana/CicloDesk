@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clienti: { icon: '👤', label: 'Schede Clienti' },
     ordini: { icon: '📋', label: 'Ordini di Lavoro' },
     catalogo: { icon: '🔩', label: 'Catalogo Lavorazioni' },
+    magazzino: { icon: '📦', label: 'Magazzino Componenti' },
   };
 
   function aggiornaBreadcrumb(name) {
@@ -81,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'clienti': await UI.renderClienti(document.getElementById('search-clienti').value); break;
         case 'ordini': await UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery(), getOrdiniFilterExtra()); break;
         case 'catalogo': await UI.renderCatalogo(); break;
+        case 'magazzino': await UI.renderMagazzino(document.getElementById('search-magazzino').value); break;
       }
       UI.aggiornaNavBadges();
     } catch (e) { showError(e.message); }
@@ -326,6 +328,44 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.apriModalLavorazione().catch(showError)
   );
 
+  document.getElementById('btn-nuovo-componente').addEventListener('click', () =>
+    UI.apriModalComponente().catch(showError)
+  );
+
+  document.getElementById('btn-import-csv').addEventListener('click', () =>
+    UI.apriModalImportCsv()
+  );
+  document.getElementById('btn-csv-anteprima').addEventListener('click', () =>
+    UI.eseguiAnteprimaCsv().catch(showError)
+  );
+  document.getElementById('btn-csv-importa').addEventListener('click', () =>
+    UI.eseguiImportCsv().catch(showError)
+  );
+  document.getElementById('btn-download-template-csv').addEventListener('click', () =>
+    UI.downloadTemplateCsv()
+  );
+  document.getElementById('csv-file-input').addEventListener('change', () =>
+    UI.eseguiAnteprimaCsv().catch(showError)
+  );
+
+  document.getElementById('btn-carico-merce').addEventListener('click', () =>
+    UI.apriModalCaricoMerce().catch(showError)
+  );
+  document.getElementById('btn-aggiungi-riga-carico').addEventListener('click', () => {
+    UI.aggiungiRigaCarico();
+    document.querySelector('#tbody-carico .carico-row:last-child .carico-nome')?.focus();
+  });
+  document.getElementById('form-carico').addEventListener('submit', (e) => {
+    e.preventDefault();
+    UI.inviaCarico().catch(showError);
+  });
+
+  let _searchMagazzinoTimeout = null;
+  document.getElementById('search-magazzino').addEventListener('input', e => {
+    clearTimeout(_searchMagazzinoTimeout);
+    _searchMagazzinoTimeout = setTimeout(() => UI.renderMagazzino(e.target.value).catch(showError), 250);
+  });
+
   document.getElementById('btn-aggiungi-bici').addEventListener('click', () => {
     const clienteId = document.getElementById('bici-cliente-id-hidden').value;
     UI.apriModalAggiungiBici(clienteId).catch(showError);
@@ -433,6 +473,33 @@ document.addEventListener('DOMContentLoaded', () => {
             showSuccess('✅ Lavorazione eliminata');
           }
           break;
+
+        // ── Magazzino
+        case 'edit-componente':
+          await UI.apriModalComponente(id); break;
+        case 'del-componente':
+          if (confirm('Eliminare questo componente dal magazzino?')) {
+            await ComponentiService.elimina(id);
+            await UI.renderMagazzino(document.getElementById('search-magazzino').value);
+            showSuccess('✅ Componente eliminato');
+          }
+          break;
+        case 'inc-componente':
+          await ComponentiService.aggiornaGiacenza(id, 1);
+          await UI.renderMagazzino(document.getElementById('search-magazzino').value);
+          break;
+        case 'dec-componente':
+          await ComponentiService.aggiornaGiacenza(id, -1);
+          await UI.renderMagazzino(document.getElementById('search-magazzino').value);
+          break;
+        case 'storico-componente':
+          await UI.apriModalMovimenti(id);
+          break;
+        case 'apri-ordine-mov':
+          e.preventDefault();
+          UI.closeAllModals();
+          await UI.apriModalOrdine(id);
+          break;
       }
     } catch (e) { showError(e.message); }
   });
@@ -471,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
           case 'clienti': UI.apriModalCliente().catch(showError); break;
           case 'ordini': document.getElementById('btn-nuovo-ordine').click(); break;
           case 'catalogo': UI.apriModalLavorazione().catch(showError); break;
+          case 'magazzino': UI.apriModalComponente().catch(showError); break;
           default: document.getElementById('btn-nuovo-ordine').click(); break;
         }
       } else if (key === 's') {
@@ -592,6 +660,35 @@ document.addEventListener('DOMContentLoaded', () => {
       UI.closeAllModals();
       await UI.renderCatalogo();
       showSuccess('✅ Lavorazione salvata');
+    } catch (e) { showError(e.message); }
+    finally { submitBtn.disabled = false; }
+  });
+
+  // ── Submit Componente Magazzino ───────────────────────────────
+  document.getElementById('form-componente').addEventListener('submit', async e => {
+    e.preventDefault();
+    const submitBtn = e.target.querySelector('[type="submit"]');
+    submitBtn.disabled = true;
+    const nome = document.getElementById('componente-nome').value.trim();
+    if (!nome) { showError('Il nome è obbligatorio.'); submitBtn.disabled = false; return; }
+    try {
+      await ComponentiService.salva({
+        id:              document.getElementById('componente-id').value || null,
+        nome,
+        categoria:       document.getElementById('componente-categoria').value,
+        marca:           document.getElementById('componente-marca').value,
+        codice:          document.getElementById('componente-codice').value,
+        fornitore:       document.getElementById('componente-fornitore').value,
+        prezzo_acquisto: document.getElementById('componente-prezzo-acquisto').value,
+        prezzo_vendita:  document.getElementById('componente-prezzo-vendita').value,
+        giacenza:        document.getElementById('componente-giacenza').value,
+        soglia_min:      document.getElementById('componente-soglia').value,
+        note:            document.getElementById('componente-note').value,
+      });
+      _formDirty = false;
+      UI.closeAllModals();
+      await UI.renderMagazzino(document.getElementById('search-magazzino').value);
+      showSuccess('✅ Componente salvato');
     } catch (e) { showError(e.message); }
     finally { submitBtn.disabled = false; }
   });

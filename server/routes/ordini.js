@@ -1,7 +1,7 @@
 const express     = require('express');
 const router      = express.Router();
 const db          = require('../db');
-const { newId }   = require('../utils');
+const { newId, registraMovimento }   = require('../utils');
 
 const STATI_VALIDI = ['accettata', 'in_lavorazione', 'pronto', 'consegnata'];
 
@@ -107,7 +107,9 @@ router.post('/', (req, res) => {
 
   if (!clienteId) return res.status(400).json({ error: 'clienteId obbligatorio' });
   if (!Array.isArray(voci) || voci.length === 0) return res.status(400).json({ error: 'Almeno una lavorazione obbligatoria' });
-  const totaleCalcolato = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
+  const subVoci = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
+  const subRicambi = (Array.isArray(ricambi) ? ricambi : []).reduce((s, r) => s + ((parseFloat(r.prezzo) || 0) * (parseInt(r.qta) || 1)), 0);
+  const totaleCalcolato = subVoci + subRicambi;
   if (parseFloat(acconto) > totaleCalcolato) return res.status(400).json({ error: 'Acconto non può superare il totale' });
 
   const statoFinal  = STATI_VALIDI.includes(stato) ? stato : 'accettata';
@@ -152,7 +154,9 @@ router.put('/:id', (req, res) => {
   const statoFinal  = STATI_VALIDI.includes(stato) ? stato : existing.stato;
   const pagatoFinal = pagato ? 1 : 0;
   if (!Array.isArray(voci) || voci.length === 0) return res.status(400).json({ error: 'Almeno una lavorazione obbligatoria' });
-  const totaleCalcolato = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
+  const subVoci = voci.reduce((s, v) => s + (parseFloat(v.prezzo) || 0), 0);
+  const subRicambi = (Array.isArray(ricambi) ? ricambi : []).reduce((s, r) => s + ((parseFloat(r.prezzo) || 0) * (parseInt(r.qta) || 1)), 0);
+  const totaleCalcolato = subVoci + subRicambi;
   if (parseFloat(acconto) > totaleCalcolato) return res.status(400).json({ error: 'Acconto non può superare il totale' });
   // Imposta dataUscita solo quando si consegna; la preserva se torna indietro
   let dataUscitaFinal;
@@ -163,6 +167,28 @@ router.put('/:id', (req, res) => {
     dataUscitaFinal = existing.dataUscita || null;
   }
 
+  // Scarico automatico magazzino: alla consegna, per ogni ricambio collegato a un componente
+  // e non ancora prelevato, decrementa la giacenza e registra il movimento.
+  let ricambiFinali = Array.isArray(ricambi) ? [...ricambi] : [];
+  if (statoFinal === 'consegnata' && existing.stato !== 'consegnata') {
+    ricambiFinali = ricambiFinali.map(r => {
+      if (r && r.componenteId && !r.prelevato) {
+        const qta = parseInt(r.qta) || 1;
+        const result = registraMovimento(db, {
+          componenteId: r.componenteId,
+          ordineId: id,
+          tipo: 'scarico',
+          quantita: -qta,
+          motivo: `Scarico ordine consegnato`,
+        });
+        if (result) {
+          return { ...r, prelevato: true, movimentoId: result.movimento.id };
+        }
+      }
+      return r;
+    });
+  }
+
   db.prepare(`
     UPDATE ordini
     SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?, pagato=?, acconto=?, foto=?, ricambi=?, commenti=?
@@ -171,7 +197,7 @@ router.put('/:id', (req, res) => {
     clienteId, biciId || null, statoFinal,
     dataIngresso, dataUscitaFinal,
     note, JSON.stringify(voci), totale, pagatoFinal,
-    parseFloat(acconto) || 0, JSON.stringify(foto), JSON.stringify(ricambi), JSON.stringify(commenti), id
+    parseFloat(acconto) || 0, JSON.stringify(foto), JSON.stringify(ricambiFinali), JSON.stringify(commenti), id
   );
 
   res.json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
