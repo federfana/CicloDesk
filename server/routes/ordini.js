@@ -169,36 +169,46 @@ router.put('/:id', (req, res) => {
 
   // Scarico automatico magazzino: alla consegna, per ogni ricambio collegato a un componente
   // e non ancora prelevato, decrementa la giacenza e registra il movimento.
+  // L'intero blocco "scarico + UPDATE ordine" è atomico: in caso di due PUT concorrenti
+  // con stesso passaggio di stato, solo il primo eseguirà lo scarico (il secondo leggerà
+  // già existing.stato === 'consegnata' e salterà il blocco).
   let ricambiFinali = Array.isArray(ricambi) ? [...ricambi] : [];
-  if (statoFinal === 'consegnata' && existing.stato !== 'consegnata') {
-    ricambiFinali = ricambiFinali.map(r => {
-      if (r && r.componenteId && !r.prelevato) {
-        const qta = parseInt(r.qta) || 1;
-        const result = registraMovimento(db, {
-          componenteId: r.componenteId,
-          ordineId: id,
-          tipo: 'scarico',
-          quantita: -qta,
-          motivo: `Scarico ordine consegnato`,
-        });
-        if (result) {
-          return { ...r, prelevato: true, movimentoId: result.movimento.id };
-        }
-      }
-      return r;
-    });
-  }
 
-  db.prepare(`
-    UPDATE ordini
-    SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?, pagato=?, acconto=?, foto=?, ricambi=?, commenti=?
-    WHERE id=?
-  `).run(
-    clienteId, biciId || null, statoFinal,
-    dataIngresso, dataUscitaFinal,
-    note, JSON.stringify(voci), totaleCalcolato, pagatoFinal,
-    parseFloat(acconto) || 0, JSON.stringify(foto), JSON.stringify(ricambiFinali), JSON.stringify(commenti), id
-  );
+  const applicaUpdate = db.transaction(() => {
+    // Rileggi lo stato corrente dentro la transazione per evitare race
+    const fresh = db.prepare('SELECT stato FROM ordini WHERE id = ?').get(id);
+    const eraConsegnata = fresh && fresh.stato === 'consegnata';
+    if (statoFinal === 'consegnata' && !eraConsegnata) {
+      ricambiFinali = ricambiFinali.map(r => {
+        if (r && r.componenteId && !r.prelevato) {
+          const qta = parseInt(r.qta) || 1;
+          const result = registraMovimento(db, {
+            componenteId: r.componenteId,
+            ordineId: id,
+            tipo: 'scarico',
+            quantita: -qta,
+            motivo: `Scarico ordine consegnato`,
+          });
+          if (result) {
+            return { ...r, prelevato: true, movimentoId: result.movimento.id };
+          }
+        }
+        return r;
+      });
+    }
+
+    db.prepare(`
+      UPDATE ordini
+      SET clienteId=?, biciId=?, stato=?, dataIngresso=?, dataUscita=?, note=?, voci=?, totale=?, pagato=?, acconto=?, foto=?, ricambi=?, commenti=?
+      WHERE id=?
+    `).run(
+      clienteId, biciId || null, statoFinal,
+      dataIngresso, dataUscitaFinal,
+      note, JSON.stringify(voci), totaleCalcolato, pagatoFinal,
+      parseFloat(acconto) || 0, JSON.stringify(foto), JSON.stringify(ricambiFinali), JSON.stringify(commenti), id
+    );
+  });
+  applicaUpdate();
 
   res.json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
 });

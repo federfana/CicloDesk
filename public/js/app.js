@@ -255,7 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ordine-foto-preview').addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-foto-remove');
     if (!btn) return;
-    const idx = parseInt(btn.dataset.fotoIdx);
+    const idx = parseInt(btn.dataset.fotoIdx, 10);
+    if (Number.isNaN(idx) || idx < 0) return;
     UI.getOrdineFoto().splice(idx, 1);
     UI.renderFotoPreview();
   });

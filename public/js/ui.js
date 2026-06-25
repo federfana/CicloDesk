@@ -1204,7 +1204,16 @@ const UI = (() => {
 
     // Foto
     const rawFoto = ordine?.foto || [];
-    _ordineFoto = Array.isArray(rawFoto) ? [...rawFoto] : (typeof rawFoto === 'string' ? JSON.parse(rawFoto || '[]') : []);
+    if (Array.isArray(rawFoto)) {
+      _ordineFoto = [...rawFoto];
+    } else if (typeof rawFoto === 'string') {
+      // Difesa contro dati legacy/corrotti: se il parse fallisce non bloccare l'apertura del modal
+      try { _ordineFoto = JSON.parse(rawFoto || '[]'); }
+      catch { _ordineFoto = []; }
+      if (!Array.isArray(_ordineFoto)) _ordineFoto = [];
+    } else {
+      _ordineFoto = [];
+    }
     renderFotoPreview();
     document.getElementById('ordine-foto-input').value = '';
 
@@ -1788,6 +1797,10 @@ const UI = (() => {
 </body></html>`;
 
     const w = window.open('', '_blank', 'width=700,height=820');
+    if (!w) {
+      alert('Popup bloccato dal browser. Abilita i popup per questo sito per stampare l\'ordine.');
+      return;
+    }
     w.document.write(html);
     w.document.close();
   }

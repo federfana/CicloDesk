@@ -92,7 +92,10 @@ app.post('/api/backup/json', (req, res) => {
 // ── Import da backup JSON ──────────────────────────────────────
 app.post('/api/import/json', (req, res) => {
   const db = require('./db');
-  const { password, clienti, bici, lavorazioni, ordini, _auth } = req.body;
+  // Guard: req.body può essere null/undefined (body vuoto) o non-oggetto (es. JSON "stringa"
+  // o numero). Express con destructuring su null/undefined lancia TypeError -> 500.
+  const body = (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
+  const { password, clienti, bici, lavorazioni, ordini, _auth } = body;
 
   // Verifica password
   if (_auth) {
