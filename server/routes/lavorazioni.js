@@ -48,19 +48,41 @@ router.put('/:id', (req, res) => {
 });
 
 // DELETE /api/lavorazioni/:id
+// Sgancia la lavorazione dalle voci degli ordini ATTIVI (lascia nome/prezzo
+// come riga manuale) e procede con l'eliminazione. Gli ordini nel cestino
+// (deletedAt valorizzato) non bloccano e non vengono toccati.
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
-  const { cnt } = db.prepare(
-    `SELECT COUNT(DISTINCT ordini.id) as cnt FROM ordini, json_each(ordini.voci)
-     WHERE json_extract(value, '$.lavorazioneId') = ?`
-  ).get(id);
-  if (cnt > 0) {
-    return res.status(409).json({
-      error: `Questa lavorazione è presente in ${cnt} ordin${cnt === 1 ? 'e' : 'i'}. Rimuoverla dagli ordini prima di eliminarla.`
+  const existing = db.prepare('SELECT * FROM lavorazioni WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ error: 'Non trovata' });
+
+  const tx = db.transaction(() => {
+    const ordiniColl = db.prepare(`
+      SELECT DISTINCT ordini.id, ordini.voci FROM ordini, json_each(ordini.voci)
+      WHERE json_extract(value, '$.lavorazioneId') = ?
+        AND (ordini.deletedAt IS NULL OR ordini.deletedAt = '')
+    `).all(id);
+
+    const upd = db.prepare('UPDATE ordini SET voci = ? WHERE id = ?');
+    ordiniColl.forEach(o => {
+      let voci;
+      try { voci = JSON.parse(o.voci || '[]'); } catch { return; }
+      const voci2 = voci.map(v => {
+        if (v && v.lavorazioneId === id) {
+          const { lavorazioneId, ...rest } = v;
+          return { ...rest, nome: v.nome || existing.nome };
+        }
+        return v;
+      });
+      upd.run(JSON.stringify(voci2), o.id);
     });
-  }
-  db.prepare('DELETE FROM lavorazioni WHERE id = ?').run(id);
-  res.json({ ok: true });
+
+    db.prepare('DELETE FROM lavorazioni WHERE id = ?').run(id);
+    return ordiniColl.length;
+  });
+
+  const sganciatiDa = tx();
+  res.json({ ok: true, sganciatiDa });
 });
 
 module.exports = router;

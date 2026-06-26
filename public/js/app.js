@@ -495,10 +495,13 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'edit-lavorazione':
           await UI.apriModalLavorazione(id); break;
         case 'del-lavorazione':
-          if (confirm('Eliminare questa lavorazione dal catalogo?')) {
-            await LavorazioniService.elimina(id);
+          if (confirm('Eliminare questa lavorazione dal catalogo? Le voci negli ordini esistenti verranno mantenute come righe manuali.')) {
+            const res = await LavorazioniService.elimina(id);
             await UI.renderCatalogo();
-            showSuccess('✅ Lavorazione eliminata');
+            const n = res?.sganciatiDa || 0;
+            showSuccess(n > 0
+              ? `✅ Lavorazione eliminata (sganciata da ${n} ordin${n === 1 ? 'e' : 'i'})`
+              : '✅ Lavorazione eliminata');
           }
           break;
 

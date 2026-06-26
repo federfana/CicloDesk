@@ -1,5 +1,5 @@
 // CicloDesk Service Worker — PWA Offline (#14)
-const CACHE_NAME = 'ciclodesk-v1.12.0';
+const CACHE_NAME = 'ciclodesk-v1.12.1';
 const API_CACHE  = 'ciclodesk-api-v1';
 const API_MAX_AGE = 5 * 60 * 1000; // 5 minuti
 
@@ -46,6 +46,22 @@ self.addEventListener('fetch', event => {
   // Non intercettare richieste non-GET alle API (POST/PUT/DELETE)
   if (url.pathname.startsWith('/api/') && request.method !== 'GET') {
     return; // lascia passare direttamente al network
+  }
+
+  // HTML / navigation: network-first così i deploy nuovi si vedono subito (fallback a cache offline)
+  if (request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(request)
+        .then(res => {
+          if (res.ok && url.origin === self.location.origin) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          }
+          return res;
+        })
+        .catch(async () => (await caches.match(request)) || (await caches.match('/')))
+    );
+    return;
   }
 
   // API GET calls: network-first con fallback a cache (max 5 min)

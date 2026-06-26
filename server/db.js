@@ -187,6 +187,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_righe_po_poId ON righe_po(poId);
   CREATE INDEX IF NOT EXISTS idx_righe_po_componenteId ON righe_po(componenteId);
   CREATE INDEX IF NOT EXISTS idx_ordini_fornitore_stato ON ordini_fornitore(stato);
+  CREATE INDEX IF NOT EXISTS idx_mov_componenteId ON movimenti_magazzino(componenteId);
 `);
 
 // ── Migrazione movimenti_magazzino: colonna poId per link a PO ─
