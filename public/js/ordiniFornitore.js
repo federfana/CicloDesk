@@ -11,7 +11,7 @@ const OrdiniFornitoreService = (() => {
 
   const STATI_LABEL = {
     bozza:                 { icon: '📝', label: 'Bozza',                 color: '#6b7280' },
-    inviato:               { icon: '📤', label: 'Inviato',               color: '#3b82f6' },
+    ordinato:              { icon: '📤', label: 'Ordinato',              color: '#3b82f6' },
     in_transito:           { icon: '🚚', label: 'In transito',           color: '#8b5cf6' },
     parzialmente_ricevuto: { icon: '📦◐', label: 'Parzialmente ricevuto', color: '#f59e0b' },
     ricevuto:              { icon: '✅', label: 'Ricevuto',              color: '#16a34a' },

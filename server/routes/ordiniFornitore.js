@@ -3,7 +3,7 @@ const router    = express.Router();
 const db        = require('../db');
 const { newId, registraMovimento } = require('../utils');
 
-const STATI_VALIDI = ['bozza', 'inviato', 'in_transito', 'parzialmente_ricevuto', 'ricevuto', 'annullato'];
+const STATI_VALIDI = ['bozza', 'ordinato', 'in_transito', 'parzialmente_ricevuto', 'ricevuto', 'annullato'];
 const STATI_TERMINALI = ['ricevuto', 'annullato'];
 
 function hydratePO(row) {
@@ -143,7 +143,7 @@ router.post('/', (req, res) => {
 
   const id = newId();
   const numero = nextNumero();
-  const dataInvio = (stato === 'inviato' || stato === 'in_transito') ? new Date().toISOString() : null;
+  const dataInvio = (stato === 'ordinato' || stato === 'in_transito') ? new Date().toISOString() : null;
 
   const insertPO = db.prepare(`
     INSERT INTO ordini_fornitore (id, numero, fornitore, stato, dataInvio, dataAttesa, note, totaleAcquisto)
@@ -255,7 +255,7 @@ router.put('/:id', (req, res) => {
 
   // Auto-set dataInvio al passaggio a inviato/in_transito
   let dataInvioFinal = dataInvio;
-  if ((stato === 'inviato' || stato === 'in_transito') && !existing.dataInvio) {
+  if ((stato === 'ordinato' || stato === 'in_transito') && !existing.dataInvio) {
     dataInvioFinal = new Date().toISOString();
   }
 

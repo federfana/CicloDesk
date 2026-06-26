@@ -196,5 +196,8 @@ if (!colonneMov.includes('poId')) {
   db.exec('ALTER TABLE movimenti_magazzino ADD COLUMN poId TEXT DEFAULT NULL');
 }
 
+// ── Migrazione stati ordini_fornitore: 'inviato' → 'ordinato' ─
+db.prepare("UPDATE ordini_fornitore SET stato = 'ordinato' WHERE stato = 'inviato'").run();
+
 module.exports = db;
 

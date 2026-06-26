@@ -2004,7 +2004,7 @@ const UI = (() => {
           const dataAttesa = po.dataAttesa ? `<span class="card-sub">📅 attesa: ${fmtDate(po.dataAttesa)}</span>` : '';
           const dataRic = po.dataRicezione ? `<span class="card-sub">✅ ricevuto: ${fmtDate(po.dataRicezione)}</span>` : '';
           const ddt = po.riferimentoDDT ? `<span class="card-sub">📄 DDT: ${esc(po.riferimentoDDT)}</span>` : '';
-          const azioneRicevi = ['inviato', 'in_transito', 'parzialmente_ricevuto'].includes(po.stato)
+          const azioneRicevi = ['ordinato', 'in_transito', 'parzialmente_ricevuto'].includes(po.stato)
             ? `<button class="btn btn-primary btn-sm" data-action="ricevi-po" data-id="${po.id}">📥 Ricevi</button>` : '';
           return `<div class="card">
             <div class="card-head">
@@ -2144,7 +2144,28 @@ const UI = (() => {
     document.getElementById('modal-po-numero').textContent = po ? `ORD-${String(po.numero).padStart(3, '0')} · ${OrdiniFornitoreService.STATI_LABEL[po.stato]?.label || po.stato}` : '';
     document.getElementById('po-id').value = po?.id || '';
     document.getElementById('po-fornitore').value = po?.fornitore || prefill?.fornitore || '';
-    document.getElementById('po-stato').value = po?.stato || 'bozza';
+
+    // Stato: gli stati editabili sono solo bozza/ordinato/in_transito.
+    // Per PO in stato avanzato (parz./ricevuto/annullato) aggiungiamo l'opzione
+    // in sola lettura per visualizzarlo correttamente.
+    const selectStato = document.getElementById('po-stato');
+    const opzioniEditabili = ['bozza', 'ordinato', 'in_transito'];
+    selectStato.innerHTML = `
+      <option value="bozza">📝 Bozza</option>
+      <option value="ordinato">📤 Ordinato</option>
+      <option value="in_transito">🚚 In transito</option>
+    `;
+    const statoCorrente = po?.stato || 'bozza';
+    if (po && !opzioniEditabili.includes(statoCorrente)) {
+      const info = OrdiniFornitoreService.STATI_LABEL[statoCorrente] || { icon: '', label: statoCorrente };
+      const opt = document.createElement('option');
+      opt.value = statoCorrente;
+      opt.textContent = `${info.icon} ${info.label}`;
+      selectStato.appendChild(opt);
+    }
+    selectStato.value = statoCorrente;
+    selectStato.disabled = !!po && !opzioniEditabili.includes(statoCorrente);
+
     document.getElementById('po-data-attesa').value = po?.dataAttesa ? po.dataAttesa.slice(0, 10) : '';
     document.getElementById('po-ddt').value = po?.riferimentoDDT || '';
     document.getElementById('po-note').value = po?.note || '';
