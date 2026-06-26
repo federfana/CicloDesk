@@ -408,7 +408,7 @@ const UI = (() => {
           <div class="card-row">
             <span class="card-title">👤 ${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente rimosso')}</span>
             <div style="display:flex;align-items:center;gap:.3rem">
-              <span class="voci-badge" title="${o.voci.length} lavorazioni">${o.voci.length}</span>
+              <span class="voci-badge" title="${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} nell'ordine">🔧 ${o.voci.length}</span>
               ${badgeCommenti(o.commenti)}
               ${badgeStato(o.stato)}
             </div>

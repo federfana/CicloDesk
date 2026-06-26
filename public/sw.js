@@ -1,5 +1,5 @@
 // CicloDesk Service Worker — PWA Offline (#14)
-const CACHE_NAME = 'ciclodesk-v1.12.1';
+const CACHE_NAME = 'ciclodesk-v1.12.2';
 const API_CACHE  = 'ciclodesk-api-v1';
 const API_MAX_AGE = 5 * 60 * 1000; // 5 minuti
 
@@ -104,7 +104,29 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Static assets: cache-first
+  // Static assets: per JS/CSS same-origin facciamo network-first (così un
+  // semplice F5 dopo un deploy mostra subito la versione nuova; fallback alla
+  // cache solo in offline). Per il resto (immagini, font, manifest, ecc.)
+  // teniamo cache-first che è immutabile.
+  const isCodeAsset = url.origin === self.location.origin &&
+    /\.(js|css)$/i.test(url.pathname);
+
+  if (isCodeAsset) {
+    event.respondWith(
+      fetch(request)
+        .then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Altri static (img/font/manifest): cache-first
   event.respondWith(
     caches.match(request).then(cached => {
       if (cached) return cached;

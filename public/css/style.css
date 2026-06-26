@@ -1427,9 +1427,10 @@ h3 {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: .15rem;
     min-width: 20px;
     height: 20px;
-    padding: 0 6px;
+    padding: 0 8px;
     border-radius: 10px;
     font-size: .72rem;
     font-weight: 700;
