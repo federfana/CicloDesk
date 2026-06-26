@@ -1,5 +1,5 @@
 // CicloDesk Service Worker — PWA Offline (#14)
-const CACHE_NAME = 'ciclodesk-v1.11.2';
+const CACHE_NAME = 'ciclodesk-v1.12.0';
 const API_CACHE  = 'ciclodesk-api-v1';
 const API_MAX_AGE = 5 * 60 * 1000; // 5 minuti
 
@@ -12,6 +12,8 @@ const STATIC_ASSETS = [
   '/js/clienti.js',
   '/js/bici.js',
   '/js/ordini.js',
+  '/js/componenti.js',
+  '/js/ordiniFornitore.js',
   '/js/ui.js',
   '/js/app.js',
   '/img/logo.svg',

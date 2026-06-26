@@ -101,6 +101,32 @@ db.exec(`
     motivo       TEXT DEFAULT '',
     timestamp    TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS ordini_fornitore (
+    id              TEXT PRIMARY KEY,
+    numero          INTEGER UNIQUE,
+    fornitore       TEXT NOT NULL,
+    stato           TEXT NOT NULL DEFAULT 'bozza',
+    dataCreazione   TEXT DEFAULT (datetime('now')),
+    dataInvio       TEXT DEFAULT NULL,
+    dataAttesa      TEXT DEFAULT NULL,
+    dataRicezione   TEXT DEFAULT NULL,
+    riferimentoDDT  TEXT DEFAULT '',
+    totaleAcquisto  REAL DEFAULT 0,
+    note            TEXT DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS righe_po (
+    id            TEXT PRIMARY KEY,
+    poId          TEXT NOT NULL,
+    componenteId  TEXT DEFAULT NULL,
+    nomeNuovo     TEXT DEFAULT '',
+    qtaOrdinata   INTEGER NOT NULL,
+    qtaRicevuta   INTEGER DEFAULT 0,
+    prezzoUnit    REAL DEFAULT 0,
+    note          TEXT DEFAULT '',
+    FOREIGN KEY (poId) REFERENCES ordini_fornitore(id) ON DELETE CASCADE
+  );
 `);
 
 // ── Migrazioni (colonne aggiunte dopo il deploy iniziale) ────────
@@ -158,7 +184,16 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_ordini_clienteId ON ordini(clienteId);
   CREATE INDEX IF NOT EXISTS idx_ordini_stato ON ordini(stato);
   CREATE INDEX IF NOT EXISTS idx_ordini_biciId ON ordini(biciId);
+  CREATE INDEX IF NOT EXISTS idx_righe_po_poId ON righe_po(poId);
+  CREATE INDEX IF NOT EXISTS idx_righe_po_componenteId ON righe_po(componenteId);
+  CREATE INDEX IF NOT EXISTS idx_ordini_fornitore_stato ON ordini_fornitore(stato);
 `);
+
+// ── Migrazione movimenti_magazzino: colonna poId per link a PO ─
+const colonneMov = db.prepare('PRAGMA table_info(movimenti_magazzino)').all().map(r => r.name);
+if (!colonneMov.includes('poId')) {
+  db.exec('ALTER TABLE movimenti_magazzino ADD COLUMN poId TEXT DEFAULT NULL');
+}
 
 module.exports = db;
 

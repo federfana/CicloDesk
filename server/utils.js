@@ -11,10 +11,10 @@ function newId() {
 /**
  * Registra un movimento di magazzino e aggiorna la giacenza del componente.
  * @param {import('better-sqlite3').Database} db
- * @param {{componenteId: string, ordineId?: string|null, tipo: 'carico'|'scarico'|'rettifica', quantita: number, motivo?: string}} params
+ * @param {{componenteId: string, ordineId?: string|null, poId?: string|null, tipo: 'carico'|'scarico'|'rettifica', quantita: number, motivo?: string}} params
  * @returns {{movimento: object, componente: object} | null}
  */
-function registraMovimento(db, { componenteId, ordineId = null, tipo, quantita, motivo = '' }) {
+function registraMovimento(db, { componenteId, ordineId = null, poId = null, tipo, quantita, motivo = '' }) {
   const comp = db.prepare('SELECT * FROM componenti WHERE id = ?').get(componenteId);
   if (!comp) return null;
   // Per tipo 'scarico' quantita è negativa, per 'carico' positiva; per 'rettifica' può essere entrambe
@@ -24,9 +24,9 @@ function registraMovimento(db, { componenteId, ordineId = null, tipo, quantita, 
   db.prepare('UPDATE componenti SET giacenza = ? WHERE id = ?').run(nuova, componenteId);
   const movId = newId();
   db.prepare(`
-    INSERT INTO movimenti_magazzino (id, componenteId, ordineId, tipo, quantita, giacenzaPost, motivo)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(movId, componenteId, ordineId, tipo, delta, nuova, (motivo || '').trim());
+    INSERT INTO movimenti_magazzino (id, componenteId, ordineId, poId, tipo, quantita, giacenzaPost, motivo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(movId, componenteId, ordineId, poId, tipo, delta, nuova, (motivo || '').trim());
   return {
     movimento: db.prepare('SELECT * FROM movimenti_magazzino WHERE id = ?').get(movId),
     componente: db.prepare('SELECT * FROM componenti WHERE id = ?').get(componenteId),

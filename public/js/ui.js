@@ -1305,9 +1305,9 @@ const UI = (() => {
       aggiornaBiciSelect(hiddenCliente.value || null, ordine?.biciId || null);
     };
 
-    inputCliente.addEventListener('focus', () => {
+    inputCliente.onfocus = () => {
       renderClientSuggestions('');
-    });
+    };
 
     suggestions.addEventListener('mousedown', (ev) => {
       const item = ev.target.closest('.clienti-suggestion');
@@ -1316,9 +1316,9 @@ const UI = (() => {
       ev.preventDefault();
     });
 
-    inputCliente.addEventListener('blur', () => {
+    inputCliente.onblur = () => {
       setTimeout(() => suggestions.classList.add('hidden'), 150);
-    });
+    };
 
     const clienteIdAttivo = hiddenCliente.value || preselezionaClienteId || ordine?.clienteId || null;
     await aggiornaBiciSelect(clienteIdAttivo, ordine?.biciId || null);
@@ -1947,6 +1947,350 @@ const UI = (() => {
     } catch (e) { /* ignore audio errors */ }
   }
 
+  // ── Approvvigionamenti ────────────────────────────────────────
+  let _poCorrente = null;
+  let _poRefsPrefill = null;   // refs ricambi cliente in attesa di submit
+  let _suggerimentiCache = []; // ultime suggerimenti per "Crea ordine da suggerimenti"
+
+  function poStatoBadge(stato) {
+    const cfg = OrdiniFornitoreService.STATI_LABEL[stato] || { icon: '•', label: stato, color: '#999' };
+    return `<span class="ricambi-badge" style="background:${cfg.color};color:#fff">${cfg.icon} ${cfg.label}</span>`;
+  }
+
+  async function renderFornitori(filtroStato = '') {
+    const wrap = document.getElementById('fornitori-list');
+    const suggWrap = document.getElementById('riordino-suggerimenti-wrap');
+    try {
+      const [lista, sugg] = await Promise.all([
+        OrdiniFornitoreService.list(filtroStato ? { stato: filtroStato } : {}),
+        OrdiniFornitoreService.suggerimenti(),
+      ]);
+      _suggerimentiCache = sugg;
+      // Pannello suggerimenti
+      if (!sugg.length) {
+        suggWrap.innerHTML = '<div class="card" style="background:#f0fdf4;border-left:4px solid #16a34a;padding:.75rem 1rem"><strong>✅ Nessun riordino da fare:</strong> tutti i ricambi richiesti e i componenti sotto-scorta sono già in un ordine o sopra soglia.</div>';
+      } else {
+        suggWrap.innerHTML = `
+          <h3 style="margin-top:0">🔔 Da riordinare (${sugg.reduce((s, g) => s + g.ricambiCliente.length + g.sottoScorta.length, 0)} articoli su ${sugg.length} fornitor${sugg.length === 1 ? 'e' : 'i'})</h3>
+          <div class="card-list">${sugg.map((g, idx) => `
+            <div class="card">
+              <div class="card-head">
+                <h4>🏷 ${esc(g.fornitore)}</h4>
+                <button class="btn btn-primary btn-sm" data-action="crea-po-da-sugg" data-idx="${idx}">+ Crea ordine</button>
+              </div>
+              ${g.ricambiCliente.length ? `
+                <div class="card-sub" style="margin-top:.4rem"><strong>📦 Ricambi ordini cliente (${g.ricambiCliente.length}):</strong></div>
+                <ul style="margin:.3rem 0;padding-left:1.2rem;font-size:.85rem">
+                  ${g.ricambiCliente.slice(0, 6).map(r => `<li>${esc(r.nome)} ×${r.qta} <span class="card-sub">— ${esc(r.clienteNome)}</span></li>`).join('')}
+                  ${g.ricambiCliente.length > 6 ? `<li class="card-sub">…+ ${g.ricambiCliente.length - 6} altri</li>` : ''}
+                </ul>
+              ` : ''}
+              ${g.sottoScorta.length ? `
+                <div class="card-sub" style="margin-top:.4rem"><strong>📉 Sotto-scorta (${g.sottoScorta.length}):</strong></div>
+                <ul style="margin:.3rem 0;padding-left:1.2rem;font-size:.85rem">
+                  ${g.sottoScorta.slice(0, 6).map(s => `<li>${esc(s.nome)} <span class="card-sub">— giac. ${s.giacenza}/${s.soglia_min} → suggerite ×${s.qtaSuggerita}</span></li>`).join('')}
+                  ${g.sottoScorta.length > 6 ? `<li class="card-sub">…+ ${g.sottoScorta.length - 6} altri</li>` : ''}
+                </ul>
+              ` : ''}
+            </div>
+          `).join('')}</div>
+        `;
+      }
+      // Lista approvvigionamenti
+      if (!lista.length) {
+        wrap.innerHTML = '<p class="card-sub" style="padding:1rem;text-align:center">Nessun approvvigionamento in elenco.</p>';
+      } else {
+        wrap.innerHTML = `<div class="card-list">${lista.map(po => {
+          const dataAttesa = po.dataAttesa ? `<span class="card-sub">📅 attesa: ${fmtDate(po.dataAttesa)}</span>` : '';
+          const dataRic = po.dataRicezione ? `<span class="card-sub">✅ ricevuto: ${fmtDate(po.dataRicezione)}</span>` : '';
+          const ddt = po.riferimentoDDT ? `<span class="card-sub">📄 DDT: ${esc(po.riferimentoDDT)}</span>` : '';
+          const azioneRicevi = ['inviato', 'in_transito', 'parzialmente_ricevuto'].includes(po.stato)
+            ? `<button class="btn btn-primary btn-sm" data-action="ricevi-po" data-id="${po.id}">📥 Ricevi</button>` : '';
+          return `<div class="card">
+            <div class="card-head">
+              <h4>ORD-${String(po.numero).padStart(3, '0')} · ${esc(po.fornitore)}</h4>
+              ${poStatoBadge(po.stato)}
+            </div>
+            <div class="card-meta">
+              <span class="card-sub">${po.nRighe} ${po.nRighe === 1 ? 'riga' : 'righe'} · ${po.qtaTotRicevuta}/${po.qtaTotOrdinata} pezzi · € ${(po.totaleAcquisto || 0).toFixed(2)}</span>
+              ${dataAttesa} ${dataRic} ${ddt}
+            </div>
+            <div class="card-actions" style="margin-top:.6rem">
+              <button class="btn btn-secondary btn-sm" data-action="apri-po" data-id="${po.id}">✏️ Dettaglio</button>
+              ${azioneRicevi}
+            </div>
+          </div>`;
+        }).join('')}</div>`;
+      }
+    } catch (e) {
+      wrap.innerHTML = `<p style="color:#c00">Errore: ${esc(e.message)}</p>`;
+    }
+  }
+
+  function aggiornaPoTotale() {
+    let totale = 0;
+    document.querySelectorAll('#tbody-po-righe tr').forEach(tr => {
+      const qta = parseInt(tr.querySelector('.inp-po-qta')?.value) || 0;
+      const prezzo = parseFloat(tr.querySelector('.inp-po-prezzo')?.value) || 0;
+      const sub = qta * prezzo;
+      tr.querySelector('.po-subtot').textContent = '€ ' + sub.toFixed(2);
+      totale += sub;
+    });
+    document.getElementById('po-totale').textContent = '€ ' + totale.toFixed(2);
+  }
+
+  function aggiungiRigaPO(riga = null) {
+    const tbody = document.getElementById('tbody-po-righe');
+    const idx = tbody.children.length;
+    const tr = document.createElement('tr');
+    // Iniziale nome: se collegato a componente usa display, altrimenti nomeNuovo
+    let nomeIniziale = riga?.nomeNuovo || '';
+    let compIdIniziale = riga?.componenteId || '';
+    if (compIdIniziale && _componentiMap[compIdIniziale]) {
+      nomeIniziale = _componentiMap[compIdIniziale].display;
+    } else if (compIdIniziale && riga?.componenteNome) {
+      nomeIniziale = riga.componenteMarca ? `${riga.componenteNome} · ${riga.componenteMarca}` : riga.componenteNome;
+    }
+    tr.innerHTML = `
+      <td style="position:relative">
+        <input type="text" class="inp-po-nome" placeholder="Articolo o nuovo nome" value="${esc(nomeIniziale)}" autocomplete="off" />
+        <input type="hidden" class="hid-po-componente" value="${esc(compIdIniziale)}" />
+        <div class="comp-suggestions hidden"></div>
+      </td>
+      <td><input type="number" class="inp-po-qta" min="1" step="1" value="${riga?.qtaOrdinata || 1}" /></td>
+      <td><input type="number" class="inp-po-prezzo" min="0" step="0.01" value="${riga?.prezzoUnit ? Number(riga.prezzoUnit).toFixed(2) : ''}" placeholder="0.00" /></td>
+      <td><span class="po-subtot">€ 0,00</span></td>
+      <td><button type="button" class="btn-rimuovi-ricambio" aria-label="Rimuovi">✕</button></td>
+    `;
+    const inpNome = tr.querySelector('.inp-po-nome');
+    const hidComp = tr.querySelector('.hid-po-componente');
+    const sugDiv  = tr.querySelector('.comp-suggestions');
+
+    function renderSug(query = '') {
+      const q = query.toLowerCase().trim();
+      const matches = _componentiList
+        .filter(c => !q || (`${c.nome} ${c.marca || ''} ${c.codice || ''}`.toLowerCase().includes(q)))
+        .slice(0, 10);
+      sugDiv.innerHTML = matches.map(c => {
+        const display = c.marca ? `${c.nome} · ${c.marca}` : c.nome;
+        return `<div class="comp-suggestion" data-id="${c.id}" data-value="${display.replace(/"/g, '&quot;')}" data-prezzo="${c.prezzo_acquisto || 0}">
+          <span class="comp-suggestion-nome">${esc(display)}</span>
+          <span class="comp-suggestion-giac">giac. ${c.giacenza || 0}</span>
+        </div>`;
+      }).join('');
+      sugDiv.classList.toggle('hidden', matches.length === 0);
+    }
+    inpNome.addEventListener('focus', () => renderSug(inpNome.value));
+    inpNome.addEventListener('input', function () { hidComp.value = ''; renderSug(this.value); });
+    inpNome.addEventListener('blur', () => setTimeout(() => sugDiv.classList.add('hidden'), 150));
+    sugDiv.addEventListener('mousedown', ev => {
+      const item = ev.target.closest('.comp-suggestion');
+      if (!item) return;
+      inpNome.value = item.dataset.value;
+      hidComp.value = item.dataset.id;
+      sugDiv.classList.add('hidden');
+      const inpPrezzo = tr.querySelector('.inp-po-prezzo');
+      if (!inpPrezzo.value && parseFloat(item.dataset.prezzo) > 0) {
+        inpPrezzo.value = parseFloat(item.dataset.prezzo).toFixed(2);
+      }
+      aggiornaPoTotale();
+      ev.preventDefault();
+    });
+    tr.querySelector('.inp-po-qta').addEventListener('input', aggiornaPoTotale);
+    tr.querySelector('.inp-po-prezzo').addEventListener('input', aggiornaPoTotale);
+    tr.querySelector('.btn-rimuovi-ricambio').addEventListener('click', () => { tr.remove(); aggiornaPoTotale(); });
+    tbody.appendChild(tr);
+    aggiornaPoTotale();
+  }
+
+  function raccogliPORighe() {
+    const out = [];
+    document.querySelectorAll('#tbody-po-righe tr').forEach(tr => {
+      const nome = tr.querySelector('.inp-po-nome')?.value.trim() || '';
+      const componenteId = tr.querySelector('.hid-po-componente')?.value || '';
+      const qta = parseInt(tr.querySelector('.inp-po-qta')?.value) || 0;
+      const prezzo = parseFloat(tr.querySelector('.inp-po-prezzo')?.value) || 0;
+      if (!nome || qta <= 0) return;
+      const r = { qtaOrdinata: qta, prezzoUnit: prezzo };
+      if (componenteId) r.componenteId = componenteId;
+      else r.nomeNuovo = nome;
+      out.push(r);
+    });
+    return out;
+  }
+
+  async function apriModalPO(poId = null, prefill = null) {
+    // Carica componenti per autocomplete
+    try {
+      const componenti = await ComponentiService.getAll();
+      _componentiList = componenti.slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+      _componentiMap = {};
+      _componentiList.forEach(c => {
+        const display = c.marca ? `${c.nome} · ${c.marca}` : c.nome;
+        _componentiMap[c.id] = { ...c, display };
+      });
+    } catch { /* ignore */ }
+
+    document.getElementById('tbody-po-righe').innerHTML = '';
+    document.getElementById('po-totale').textContent = '€ 0,00';
+
+    let po = null;
+    if (poId) po = await OrdiniFornitoreService.findById(poId);
+    _poCorrente = po;
+    // Quando si crea da suggerimento, i refs verso ricambi cliente arrivano nel prefill
+    _poRefsPrefill = (!po && prefill?.righeClienteRefs) ? prefill.righeClienteRefs : null;
+
+    document.getElementById('modal-po-title').textContent = po ? '✏️ Modifica Approvvigionamento' : '+ Nuovo Approvvigionamento';
+    document.getElementById('modal-po-numero').textContent = po ? `ORD-${String(po.numero).padStart(3, '0')} · ${OrdiniFornitoreService.STATI_LABEL[po.stato]?.label || po.stato}` : '';
+    document.getElementById('po-id').value = po?.id || '';
+    document.getElementById('po-fornitore').value = po?.fornitore || prefill?.fornitore || '';
+    document.getElementById('po-stato').value = po?.stato || 'bozza';
+    document.getElementById('po-data-attesa').value = po?.dataAttesa ? po.dataAttesa.slice(0, 10) : '';
+    document.getElementById('po-ddt').value = po?.riferimentoDDT || '';
+    document.getElementById('po-note').value = po?.note || '';
+
+    // Popola righe esistenti o prefill
+    if (po && po.righe) {
+      po.righe.forEach(r => aggiungiRigaPO(r));
+    } else if (prefill?.righe?.length) {
+      prefill.righe.forEach(r => aggiungiRigaPO(r));
+    } else {
+      aggiungiRigaPO();
+    }
+
+    // Disabilita modifica righe se PO non più in bozza
+    const inBozza = !po || po.stato === 'bozza';
+    document.getElementById('btn-aggiungi-riga-po').disabled = !inBozza;
+    document.querySelectorAll('#tbody-po-righe input, #tbody-po-righe button').forEach(el => {
+      if (!inBozza) el.setAttribute('disabled', 'disabled');
+    });
+    // Mostra pulsante "Annulla" solo per ordini non terminali
+    const btnAnnulla = document.getElementById('btn-po-annulla');
+    if (po && !['ricevuto', 'annullato'].includes(po.stato)) {
+      btnAnnulla.style.display = '';
+    } else {
+      btnAnnulla.style.display = 'none';
+    }
+
+    openModal('modal-po');
+    document.getElementById('po-fornitore').focus();
+  }
+
+  function preparaPOdaSuggerimento(idx) {
+    const g = _suggerimentiCache[idx];
+    if (!g) return;
+    // Aggrega per componenteId (somma qta); ricambi senza componenteId restano singoli
+    // Tieni traccia degli indici per costruire righeClienteRefs (collegamento bidirezionale)
+    const aggregMap = {};   // componenteId → indice in `righe`
+    const senzaComp = [];   // { riga, ref }
+    const refs = [];        // [{ ordineId, ricambioIdx, rigaPoIdx }]
+    const righe = [];
+
+    g.ricambiCliente.forEach(r => {
+      if (r.componenteId) {
+        let i = aggregMap[r.componenteId];
+        if (i == null) {
+          i = righe.length;
+          aggregMap[r.componenteId] = i;
+          righe.push({ componenteId: r.componenteId, qtaOrdinata: 0, prezzoUnit: 0 });
+        }
+        righe[i].qtaOrdinata += (r.qta || 1);
+        refs.push({ ordineId: r.ordineId, ricambioIdx: r.ricambioIdx, rigaPoIdx: i });
+      } else {
+        const i = righe.length;
+        righe.push({ nomeNuovo: r.nome, qtaOrdinata: r.qta || 1, prezzoUnit: 0 });
+        refs.push({ ordineId: r.ordineId, ricambioIdx: r.ricambioIdx, rigaPoIdx: i });
+      }
+    });
+    g.sottoScorta.forEach(s => {
+      let i = aggregMap[s.componenteId];
+      if (i == null) {
+        i = righe.length;
+        aggregMap[s.componenteId] = i;
+        righe.push({ componenteId: s.componenteId, qtaOrdinata: 0, prezzoUnit: s.prezzo_acquisto || 0 });
+      }
+      righe[i].qtaOrdinata += s.qtaSuggerita;
+      if (!righe[i].prezzoUnit) righe[i].prezzoUnit = s.prezzo_acquisto || 0;
+    });
+
+    const forn = g.fornitore === '(Senza fornitore)' ? '' : g.fornitore;
+    apriModalPO(null, { fornitore: forn, righe, righeClienteRefs: refs });
+  }
+
+  async function inviaPO(ev) {
+    ev.preventDefault();
+    const id = document.getElementById('po-id').value;
+    const fornitore = document.getElementById('po-fornitore').value.trim();
+    if (!fornitore) { window._showError?.('Fornitore obbligatorio'); return; }
+    const stato = document.getElementById('po-stato').value;
+    const dataAttesa = document.getElementById('po-data-attesa').value || null;
+    const riferimentoDDT = document.getElementById('po-ddt').value.trim();
+    const note = document.getElementById('po-note').value.trim();
+    const righe = raccogliPORighe();
+    if (!righe.length) { window._showError?.('Aggiungi almeno una riga'); return; }
+
+    // Quando si modifica un PO in bozza, includi anche le righe (sostituisce)
+    const isBozzaModifica = _poCorrente && _poCorrente.stato === 'bozza';
+    const body = { fornitore, stato, dataAttesa, riferimentoDDT, note };
+    if (!id || isBozzaModifica) body.righe = righe;
+    // Solo in creazione: passa il collegamento ricambi cliente → righe PO
+    if (!id && _poRefsPrefill && _poRefsPrefill.length) body.righeClienteRefs = _poRefsPrefill;
+
+    if (id) await OrdiniFornitoreService.aggiorna(id, body);
+    else await OrdiniFornitoreService.crea(body);
+
+    _poRefsPrefill = null;
+    closeAllModals();
+    await renderFornitori(document.getElementById('filter-po-stato').value);
+  }
+
+  async function apriModalRiceviPO(poId) {
+    const po = await OrdiniFornitoreService.findById(poId);
+    document.getElementById('po-ricevi-id').value = po.id;
+    document.getElementById('po-ricevi-numero').textContent = `ORD-${String(po.numero).padStart(3, '0')} · ${esc(po.fornitore)}`;
+    document.getElementById('po-ricevi-ddt').value = po.riferimentoDDT || '';
+    const tbody = document.getElementById('tbody-po-ricevi');
+    tbody.innerHTML = po.righe.map(r => {
+      const rimanenti = (r.qtaOrdinata || 0) - (r.qtaRicevuta || 0);
+      const nome = r.componenteNome ? (r.componenteMarca ? `${r.componenteNome} · ${r.componenteMarca}` : r.componenteNome) : (r.nomeNuovo || r.id.slice(0, 6));
+      return `<tr data-riga-id="${r.id}">
+        <td>${esc(nome)}</td>
+        <td>${r.qtaOrdinata}</td>
+        <td>${r.qtaRicevuta || 0}</td>
+        <td><input type="number" class="inp-ricevi-qta" min="0" max="${rimanenti}" step="1" value="${rimanenti}" ${rimanenti <= 0 ? 'disabled' : ''} /></td>
+        <td><input type="number" class="inp-ricevi-prezzo" min="0" step="0.01" value="${Number(r.prezzoUnit || 0).toFixed(2)}" /></td>
+      </tr>`;
+    }).join('');
+    openModal('modal-po-ricevi');
+  }
+
+  async function inviaRiceviPO(ev) {
+    ev.preventDefault();
+    const id = document.getElementById('po-ricevi-id').value;
+    const riferimentoDDT = document.getElementById('po-ricevi-ddt').value.trim();
+    const righe = [];
+    document.querySelectorAll('#tbody-po-ricevi tr').forEach(tr => {
+      const qta = parseInt(tr.querySelector('.inp-ricevi-qta')?.value) || 0;
+      const prezzo = parseFloat(tr.querySelector('.inp-ricevi-prezzo')?.value);
+      if (qta > 0) {
+        const r = { rigaId: tr.dataset.rigaId, qtaRicevuta: qta };
+        if (!isNaN(prezzo)) r.prezzoUnit = prezzo;
+        righe.push(r);
+      }
+    });
+    if (!righe.length) { window._showError?.('Nessuna quantità da ricevere'); return; }
+    await OrdiniFornitoreService.ricevi(id, { riferimentoDDT, righe });
+    closeAllModals();
+    await renderFornitori(document.getElementById('filter-po-stato').value);
+  }
+
+  async function annullaPO(poId) {
+    if (!confirm('Annullare questo approvvigionamento? I ricambi cliente collegati torneranno a "🔴 Da ordinare".')) return;
+    await OrdiniFornitoreService.annulla(poId);
+    closeAllModals();
+    await renderFornitori(document.getElementById('filter-po-stato').value);
+  }
+
   // ── Nav Badges (#8) ────────────────────────────────────────────
   async function aggiornaNavBadges() {
     try {
@@ -1986,5 +2330,7 @@ const UI = (() => {
     openModal, closeAllModals,
     printOrdine, cercaGlobale, aggiornaLocale,
     aggiornaNavBadges, beepNotifica,
+    renderFornitori, apriModalPO, apriModalRiceviPO, aggiungiRigaPO,
+    inviaPO, inviaRiceviPO, annullaPO, preparaPOdaSuggerimento,
   };
 })();

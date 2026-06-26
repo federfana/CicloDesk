@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ordini: { icon: '📋', label: 'Ordini di Lavoro' },
     catalogo: { icon: '🔩', label: 'Catalogo Lavorazioni' },
     magazzino: { icon: '📦', label: 'Magazzino Componenti' },
+    fornitori: { icon: '📤', label: 'Approvvigionamenti' },
   };
 
   function aggiornaBreadcrumb(name) {
@@ -83,6 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'ordini': await UI.renderOrdini(getOrdiniFilter(), getOrdiniQuery(), getOrdiniFilterExtra()); break;
         case 'catalogo': await UI.renderCatalogo(); break;
         case 'magazzino': await UI.renderMagazzino(document.getElementById('search-magazzino').value); break;
+        case 'fornitori': await UI.renderFornitori(document.getElementById('filter-po-stato')?.value || ''); break;
       }
       UI.aggiornaNavBadges();
     } catch (e) { showError(e.message); }
@@ -367,6 +369,31 @@ document.addEventListener('DOMContentLoaded', () => {
     _searchMagazzinoTimeout = setTimeout(() => UI.renderMagazzino(e.target.value).catch(showError), 250);
   });
 
+  // ── Approvvigionamenti ──────────────────────────────────────────────
+  // Espongo gli helper toast per ui.js che li chiama via window._showError
+  window._showError = showError;
+  window._showSuccess = showSuccess;
+  document.getElementById('btn-nuovo-po').addEventListener('click', () =>
+    UI.apriModalPO().catch(showError)
+  );
+  document.getElementById('btn-aggiungi-riga-po').addEventListener('click', () => {
+    UI.aggiungiRigaPO();
+    document.querySelector('#tbody-po-righe tr:last-child .inp-po-nome')?.focus();
+  });
+  document.getElementById('form-po').addEventListener('submit', (e) => {
+    UI.inviaPO(e).then(() => showSuccess('✅ Approvvigionamento salvato')).catch(err => showError(err.message));
+  });
+  document.getElementById('btn-po-annulla').addEventListener('click', () => {
+    const id = document.getElementById('po-id').value;
+    if (id) UI.annullaPO(id).then(() => showSuccess('🚫 Ordine annullato')).catch(err => showError(err.message));
+  });
+  document.getElementById('form-po-ricevi').addEventListener('submit', (e) => {
+    UI.inviaRiceviPO(e).then(() => showSuccess('📥 Ricezione registrata')).catch(err => showError(err.message));
+  });
+  document.getElementById('filter-po-stato').addEventListener('change', e => {
+    UI.renderFornitori(e.target.value).catch(showError);
+  });
+
   document.getElementById('btn-aggiungi-bici').addEventListener('click', () => {
     const clienteId = document.getElementById('bici-cliente-id-hidden').value;
     UI.apriModalAggiungiBici(clienteId).catch(showError);
@@ -501,6 +528,14 @@ document.addEventListener('DOMContentLoaded', () => {
           UI.closeAllModals();
           await UI.apriModalOrdine(id);
           break;
+
+        // ── Approvvigionamenti
+        case 'apri-po':
+          await UI.apriModalPO(id); break;
+        case 'ricevi-po':
+          await UI.apriModalRiceviPO(id); break;
+        case 'crea-po-da-sugg':
+          UI.preparaPOdaSuggerimento(parseInt(btn.dataset.idx)); break;
       }
     } catch (e) { showError(e.message); }
   });
