@@ -88,10 +88,12 @@ const UI = (() => {
 
   // ── Dashboard ─────────────────────────────────────────────────
   async function renderDashboard() {
-    const [tutti, clienti] = await Promise.all([
+    const [tutti, clienti, componenti] = await Promise.all([
       OrdiniService.getAll(),
       ClientiService.getAll(),
+      ComponentiService.getAll().catch(() => []),
     ]);
+    const giacenzaMap = Object.fromEntries((componenti || []).map(c => [c.id, c.giacenza || 0]));
 
     const inOfficina = tutti.filter(o => o.stato !== 'consegnata');
     const pronti = tutti.filter(o => o.stato === 'pronto');
@@ -179,6 +181,24 @@ const UI = (() => {
 
     container.innerHTML = inOfficina.map(o => {
       const c = clientiMap[o.clienteId];
+      // Per ordini in stato 'accettata' calcola se il magazzino è sufficiente
+      // per tutti i ricambi con componenteId collegato (indicatore "pronto per
+      // iniziare"). Ignora i ricambi liberi senza componente.
+      let prontoBadge = '';
+      if (o.stato === 'accettata') {
+        const ricambiKit = (o.ricambi || []).filter(r => r && r.componenteId);
+        if (ricambiKit.length > 0) {
+          let mancanti = 0;
+          ricambiKit.forEach(r => {
+            const g = giacenzaMap[r.componenteId] ?? 0;
+            const q = parseInt(r.qta) || 1;
+            if (g < q) mancanti += (q - g);
+          });
+          prontoBadge = mancanti === 0
+            ? '<span class="ricambi-badge ricambi-ok">🟢 Pronto per iniziare</span>'
+            : `<span class="ricambi-badge ricambi-warn">🔴 Manca${mancanti === 1 ? '' : 'no'} ${mancanti} pezz${mancanti === 1 ? 'o' : 'i'} in magazzino</span>`;
+        }
+      }
       return `
         <div class="card stato-${o.stato}">
           <div class="card-row">
@@ -193,7 +213,8 @@ const UI = (() => {
             <strong>${fmt(o.totale)}</strong>
             ${badgeCommenti(o.commenti)}
           </span>
-          ${badgeRicambi(o.ricambi)}
+          ${badgeRicambi(o.ricambi, o.stato)}
+          ${prontoBadge}
           <div class="card-actions">
             ${btnAvanza(o)}
             <button class="btn btn-sm btn-secondary" data-action="edit-ordine" data-id="${o.id}">✏ Modifica</button>
@@ -419,7 +440,7 @@ const UI = (() => {
             ${o.dataUscita ? '&nbsp;|&nbsp; Uscita: ' + fmtDate(o.dataUscita) : ''}
           </span>
           ${o.note ? `<span class="card-sub">📝 ${esc(o.note)}</span>` : ''}
-          ${badgeRicambi(o.ricambi)}
+          ${badgeRicambi(o.ricambi, o.stato)}
           <div>${vociHtml || '<span class="card-sub">Nessuna lavorazione</span>'}</div>
           <div class="card-row card-row-totale">
             <div class="pag-box ${pagBoxCls}">
@@ -1662,11 +1683,33 @@ const UI = (() => {
     return ricambi;
   }
 
-  function badgeRicambi(ricambi) {
+  function badgeRicambi(ricambi, stato) {
     if (!ricambi || !ricambi.length) return '';
+    const parts = [];
+    // Ricambi in attesa dal fornitore (asse "arrivo merce")
     const pending = ricambi.filter(r => r.stato !== 'ricevuto').length;
-    if (pending === 0) return '<span class="ricambi-badge ricambi-ok">📦✅ Ricambi completi</span>';
-    return `<span class="ricambi-badge ricambi-pending">📦⏳ ${pending} ricambi${pending > 1 ? '' : 'o'} in attesa</span>`;
+    if (pending > 0) {
+      parts.push(`<span class="ricambi-badge ricambi-pending">📦⏳ ${pending} ricambi${pending > 1 ? '' : 'o'} in attesa</span>`);
+    } else {
+      parts.push('<span class="ricambi-badge ricambi-ok">📦✅ Ricambi completi</span>');
+    }
+    // Se l'ordine è in fase lavorata mostra anche il conteggio dei pezzi
+    // effettivamente prelevati dal magazzino (asse "consumo magazzino")
+    const STATI_LAVORATI = ['in_lavorazione', 'pronto', 'consegnata'];
+    if (STATI_LAVORATI.includes(stato)) {
+      const conComponente = ricambi.filter(r => r && r.componenteId);
+      if (conComponente.length > 0) {
+        const richiesti = conComponente.reduce((s, r) => s + (parseInt(r.qta) || 1), 0);
+        const prelevati = conComponente.reduce((s, r) => s + (parseInt(r.qtaPrelevata ?? (r.prelevato ? r.qta : 0)) || 0), 0);
+        const mancanti = Math.max(0, richiesti - prelevati);
+        if (mancanti > 0) {
+          parts.push(`<span class="ricambi-badge ricambi-warn">📦⚠️ ${prelevati}/${richiesti} prelevati (${mancanti} mancant${mancanti === 1 ? 'e' : 'i'})</span>`);
+        } else if (prelevati > 0) {
+          parts.push(`<span class="ricambi-badge ricambi-ok">🔧 ${prelevati}/${richiesti} prelevati dal magazzino</span>`);
+        }
+      }
+    }
+    return parts.join(' ');
   }
 
   // ── Timeline commenti ─────────────────────────────────────────

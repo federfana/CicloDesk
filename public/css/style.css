@@ -2153,6 +2153,25 @@ body.dark .totale-ordine-box #totale-ordine {
     border: 1px solid #22c55e;
 }
 
+.ricambi-warn {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+    display: inline-block;
+    font-size: .78rem;
+    padding: .2rem .5rem;
+    border-radius: 6px;
+    margin-top: .2rem;
+    margin-left: .3rem;
+    font-weight: 600;
+}
+
+body.dark .ricambi-warn {
+    background: #422006;
+    color: #fde68a;
+    border-color: #d97706;
+}
+
 .alert-info {
     background: #dbeafe;
     border: 1px solid #3b82f6;

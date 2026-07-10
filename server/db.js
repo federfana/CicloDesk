@@ -199,5 +199,68 @@ if (!colonneMov.includes('poId')) {
 // ── Migrazione stati ordini_fornitore: 'inviato' → 'ordinato' ─
 db.prepare("UPDATE ordini_fornitore SET stato = 'ordinato' WHERE stato = 'inviato'").run();
 
+// ── Tabella meta per tracciare migrazioni una-tantum ────────────
+db.exec(`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT)`);
+
+// ── Migrazione v1.13.0: scarico retroattivo ricambi ordini già in
+//    fase lavorata (in_lavorazione/pronto/consegnata) creati prima
+//    che lo scarico avvenisse all'inizio lavorazione. Idempotente:
+//    il flag prelevato:true protegge da doppio scarico, e la meta
+//    key impedisce di riscansionare tutti gli ordini a ogni riavvio.
+{
+  const flag = db.prepare("SELECT value FROM _meta WHERE key = 'migration_v113_stock'").get();
+  if (!flag) {
+    const { registraMovimento } = require('./utils');
+    try {
+      const ordini = db.prepare(`
+        SELECT id, ricambi FROM ordini
+        WHERE stato IN ('in_lavorazione','pronto','consegnata')
+          AND (deletedAt IS NULL OR deletedAt = '')
+      `).all();
+      let ordiniAggiornati = 0;
+      let ricambiScaricati = 0;
+      const tx = db.transaction(() => {
+        ordini.forEach(o => {
+          let ric = [];
+          try { ric = JSON.parse(o.ricambi || '[]'); } catch { return; }
+          let modificato = false;
+          const aggiornati = ric.map(r => {
+            if (r && r.componenteId && !r.prelevato) {
+              const qta = parseInt(r.qta) || 1;
+              const result = registraMovimento(db, {
+                componenteId: r.componenteId,
+                ordineId: o.id,
+                tipo: 'scarico',
+                quantita: -qta,
+                motivo: 'Scarico retroattivo (migrazione v1.13.0)',
+              });
+              if (result) {
+                modificato = true;
+                ricambiScaricati++;
+                return { ...r, prelevato: true, movimentoId: result.movimento.id, qtaPrelevata: -result.movimento.quantita };
+              }
+            }
+            return r;
+          });
+          if (modificato) {
+            db.prepare('UPDATE ordini SET ricambi = ? WHERE id = ?').run(JSON.stringify(aggiornati), o.id);
+            ordiniAggiornati++;
+          }
+        });
+        db.prepare("INSERT OR REPLACE INTO _meta (key, value) VALUES (?, ?)")
+          .run('migration_v113_stock', new Date().toISOString());
+      });
+      tx();
+      if (ordiniAggiornati > 0) {
+        console.log(`🔧  Migrazione v1.13.0: scaricati ${ricambiScaricati} ricambi da ${ordiniAggiornati} ordini pre-esistenti.`);
+      } else {
+        console.log('🔧  Migrazione v1.13.0: nessun ordine da sincronizzare.');
+      }
+    } catch (e) {
+      console.error('⚠  Migrazione v1.13.0 fallita:', e.message);
+    }
+  }
+}
+
 module.exports = db;
 
