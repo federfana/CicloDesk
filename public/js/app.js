@@ -27,6 +27,20 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => t.remove(), 3000);
   }
 
+  // Notifica gli effetti sul magazzino (scarico/carico automatico) ritornati
+  // dal server in response._magazzino. Mostra un toast informativo e, in caso
+  // di sotto-scorta, uno di errore separato con i dettagli.
+  function notificaMagazzino(mag) {
+    if (!mag) return;
+    const parts = [];
+    if (mag.scarico > 0) parts.push(`🔧 ${mag.scarico} pezz${mag.scarico === 1 ? 'o prelevato' : 'i prelevati'} dal magazzino`);
+    if (mag.carico > 0) parts.push(`↩️ ${mag.carico} pezz${mag.carico === 1 ? 'o ricaricato' : 'i ricaricati'} in magazzino`);
+    if (parts.length) showSuccess(parts.join(' · '));
+    if (Array.isArray(mag.warnings) && mag.warnings.length) {
+      showError(mag.warnings.join(' — '));
+    }
+  }
+
   // ── Loading overlay ───────────────────────────────────────────
   const loadingOverlay = document.createElement('div');
   loadingOverlay.id = 'loading-overlay';
@@ -466,11 +480,13 @@ document.addEventListener('DOMContentLoaded', () => {
             showSuccess('🗑 Ordine spostato nel cestino');
           }
           break;
-        case 'ripristina-ordine':
-          await OrdiniService.ripristina(id);
+        case 'ripristina-ordine': {
+          const rip = await OrdiniService.ripristina(id);
           await refreshView(currentView);
           showSuccess('✅ Ordine ripristinato');
+          notificaMagazzino(rip?._magazzino);
           break;
+        }
         case 'del-ordine-permanente':
           if (confirm('⚠ Eliminazione DEFINITIVA. Sei sicuro? Questa azione non è reversibile.')) {
             await OrdiniService.eliminaDefinitivamente(id);
@@ -648,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ordineId = document.getElementById('ordine-id').value || null;
       const esistente = ordineId ? await OrdiniService.findById(ordineId) : null;
 
-      await OrdiniService.salva({
+      const salvato = await OrdiniService.salva({
         id: ordineId,
         clienteId,
         biciId: document.getElementById('ordine-bici-id').value || null,
@@ -677,6 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await refreshView(currentView);
       }
       showSuccess('✅ Ordine salvato');
+      notificaMagazzino(salvato?._magazzino);
     } catch (e) { showError(e.message); }
     finally { submitBtn.disabled = false; }
   });

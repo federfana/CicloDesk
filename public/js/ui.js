@@ -1522,6 +1522,14 @@ const UI = (() => {
     const tr = document.createElement('tr');
     const statoVal = ricambio.stato || 'da_ordinare';
     const prelevato = Boolean(ricambio.prelevato);
+    // Metadati non editabili conservati sulla riga (movimentoId serve per matching
+    // scarico/ricarico lato server; poId/rigaPoId per il collegamento con gli
+    // ordini fornitore). Vengono rimessi nel payload da raccogliRicambi().
+    const meta = {};
+    if (ricambio.movimentoId) meta.movimentoId = ricambio.movimentoId;
+    if (ricambio.poId) meta.poId = ricambio.poId;
+    if (ricambio.rigaPoId) meta.rigaPoId = ricambio.rigaPoId;
+    tr.dataset.ricambioMeta = JSON.stringify(meta);
     // Determina display iniziale
     let nomeIniziale = ricambio.nome || '';
     if (ricambio.componenteId && _componentiMap[ricambio.componenteId]) {
@@ -1638,11 +1646,14 @@ const UI = (() => {
       const componenteId = tr.querySelector('.hid-ricambio-componente')?.value || '';
       const prelevato = tr.querySelector('.hid-ricambio-prelevato')?.value === '1';
       const prezzo = parseFloat(tr.querySelector('.inp-ricambio-prezzo')?.value) || 0;
+      let meta = {};
+      try { meta = JSON.parse(tr.dataset.ricambioMeta || '{}'); } catch { meta = {}; }
       const r = {
         nome,
         qta:    parseInt(tr.querySelector('.inp-ricambio-qta')?.value) || 1,
         prezzo,
         stato:  tr.querySelector('.sel-ricambio-stato')?.value || 'da_ordinare',
+        ...meta,
       };
       if (componenteId) r.componenteId = componenteId;
       if (prelevato) r.prelevato = true;

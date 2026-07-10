@@ -167,18 +167,66 @@ router.put('/:id', (req, res) => {
     dataUscitaFinal = existing.dataUscita || null;
   }
 
-  // Scarico automatico magazzino: alla consegna, per ogni ricambio collegato a un componente
-  // e non ancora prelevato, decrementa la giacenza e registra il movimento.
-  // L'intero blocco "scarico + UPDATE ordine" è atomico: in caso di due PUT concorrenti
-  // con stesso passaggio di stato, solo il primo eseguirà lo scarico (il secondo leggerà
-  // già existing.stato === 'consegnata' e salterà il blocco).
-  let ricambiFinali = Array.isArray(ricambi) ? [...ricambi] : [];
+  // Scarico automatico magazzino: quando l'ordine entra in fase di lavorazione
+  // (in_lavorazione / pronto / consegnata) la giacenza dei ricambi con
+  // componenteId collegato viene decrementata. Se l'ordine torna indietro ad
+  // 'accettata', o un ricambio viene rimosso, o l'ordine finisce nel cestino,
+  // la giacenza viene ricaricata automaticamente. L'intero blocco è atomico.
+  const STATI_LAVORATI = ['in_lavorazione', 'pronto', 'consegnata'];
+  let ricambiFinali = Array.isArray(ricambi) ? ricambi.map(r => ({ ...r })) : [];
+  const magSummary = { scarico: 0, carico: 0, warnings: [] };
 
   const applicaUpdate = db.transaction(() => {
-    // Rileggi lo stato corrente dentro la transazione per evitare race
-    const fresh = db.prepare('SELECT stato FROM ordini WHERE id = ?').get(id);
-    const eraConsegnata = fresh && fresh.stato === 'consegnata';
-    if (statoFinal === 'consegnata' && !eraConsegnata) {
+    // Rileggi ricambi correnti dentro la transazione per evitare race con altri PUT
+    const fresh = db.prepare('SELECT ricambi FROM ordini WHERE id = ?').get(id);
+    let vecchiRicambi = [];
+    try { vecchiRicambi = JSON.parse(fresh?.ricambi || '[]'); } catch { vecchiRicambi = []; }
+
+    // 1) Ricarico dei ricambi rimossi dall'ordine (matching per movimentoId).
+    // Usa la quantità effettivamente scaricata (r.qtaPrelevata) per non creare
+    // pezzi dal nulla se in fase di scarico c'era stata giacenza insufficiente.
+    const movIdsNuovi = new Set(
+      ricambiFinali.filter(r => r && r.movimentoId).map(r => r.movimentoId)
+    );
+    vecchiRicambi.forEach(r => {
+      if (r && r.prelevato && r.movimentoId && r.componenteId && !movIdsNuovi.has(r.movimentoId)) {
+        const qta = parseInt(r.qtaPrelevata ?? r.qta) || 1;
+        if (qta <= 0) return;
+        const result = registraMovimento(db, {
+          componenteId: r.componenteId,
+          ordineId: id,
+          tipo: 'carico',
+          quantita: qta,
+          motivo: 'Ricarico: ricambio rimosso dall\'ordine',
+        });
+        if (result) magSummary.carico += result.movimento.quantita;
+      }
+    });
+
+    // 2) Regressione ad 'accettata': ricarico tutti i prelevati e rimuovo il flag
+    if (statoFinal === 'accettata') {
+      ricambiFinali = ricambiFinali.map(r => {
+        if (r && r.prelevato && r.componenteId) {
+          const qta = parseInt(r.qtaPrelevata ?? r.qta) || 1;
+          if (qta > 0) {
+            const result = registraMovimento(db, {
+              componenteId: r.componenteId,
+              ordineId: id,
+              tipo: 'carico',
+              quantita: qta,
+              motivo: 'Ricarico: ordine tornato ad accettata',
+            });
+            if (result) magSummary.carico += result.movimento.quantita;
+          }
+          const { prelevato, movimentoId, qtaPrelevata, ...rest } = r;
+          return rest;
+        }
+        return r;
+      });
+    }
+
+    // 3) Avanzamento in fase lavorata: scarico i ricambi non ancora prelevati
+    if (STATI_LAVORATI.includes(statoFinal)) {
       ricambiFinali = ricambiFinali.map(r => {
         if (r && r.componenteId && !r.prelevato) {
           const qta = parseInt(r.qta) || 1;
@@ -187,15 +235,27 @@ router.put('/:id', (req, res) => {
             ordineId: id,
             tipo: 'scarico',
             quantita: -qta,
-            motivo: `Scarico ordine consegnato`,
+            motivo: 'Scarico ordine in lavorazione',
           });
           if (result) {
-            return { ...r, prelevato: true, movimentoId: result.movimento.id };
+            const scaricato = -result.movimento.quantita; // quanto realmente scaricato dal magazzino
+            magSummary.scarico += scaricato;
+            if (result.shortfall !== 0) {
+              const mancanti = Math.abs(result.shortfall);
+              magSummary.warnings.push(
+                `Giacenza insufficiente per "${result.componenteNome}": scaricati ${scaricato} pezz${scaricato === 1 ? 'o' : 'i'} su ${qta} richiest${qta === 1 ? 'o' : 'i'} (${mancanti} mancant${mancanti === 1 ? 'e' : 'i'})`
+              );
+            }
+            return { ...r, prelevato: true, movimentoId: result.movimento.id, qtaPrelevata: scaricato };
           }
         }
         return r;
       });
     }
+
+    // Ricalcolo totale su ricambiFinali (potrebbero essere cambiati oggetti ma non le qta)
+    const subRicambiFinal = ricambiFinali.reduce((s, r) => s + ((parseFloat(r.prezzo) || 0) * (parseInt(r.qta) || 1)), 0);
+    const totaleFinal = subVoci + subRicambiFinal;
 
     db.prepare(`
       UPDATE ordini
@@ -204,30 +264,123 @@ router.put('/:id', (req, res) => {
     `).run(
       clienteId, biciId || null, statoFinal,
       dataIngresso, dataUscitaFinal,
-      note, JSON.stringify(voci), totaleCalcolato, pagatoFinal,
+      note, JSON.stringify(voci), totaleFinal, pagatoFinal,
       parseFloat(acconto) || 0, JSON.stringify(foto), JSON.stringify(ricambiFinali), JSON.stringify(commenti), id
     );
   });
   applicaUpdate();
 
-  res.json(parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id)));
+  const ordineOut = parse(db.prepare('SELECT * FROM ordini WHERE id = ?').get(id));
+  res.json({ ...ordineOut, _magazzino: magSummary });
 });
 
 // DELETE /api/ordini/:id (soft delete → cestino)
+// Ricarica in magazzino tutti i ricambi ancora "prelevati": se poi l'ordine
+// viene ripristinato e ri-avanzato, verranno scaricati di nuovo.
 router.delete('/:id', (req, res) => {
-  db.prepare('UPDATE ordini SET deletedAt = ? WHERE id = ?').run(new Date().toISOString(), req.params.id);
+  const { id } = req.params;
+  const tx = db.transaction(() => {
+    const row = db.prepare('SELECT ricambi FROM ordini WHERE id = ?').get(id);
+    if (!row) return;
+    let ricambi = [];
+    try { ricambi = JSON.parse(row.ricambi || '[]'); } catch { ricambi = []; }
+    const ricambiPuliti = ricambi.map(r => {
+      if (r && r.prelevato && r.componenteId) {
+        const qta = parseInt(r.qtaPrelevata ?? r.qta) || 1;
+        if (qta > 0) {
+          registraMovimento(db, {
+            componenteId: r.componenteId,
+            ordineId: id,
+            tipo: 'carico',
+            quantita: qta,
+            motivo: 'Ricarico: ordine spostato nel cestino',
+          });
+        }
+        const { prelevato, movimentoId, qtaPrelevata, ...rest } = r;
+        return rest;
+      }
+      return r;
+    });
+    db.prepare('UPDATE ordini SET ricambi = ?, deletedAt = ? WHERE id = ?')
+      .run(JSON.stringify(ricambiPuliti), new Date().toISOString(), id);
+  });
+  tx();
   res.json({ ok: true });
 });
 
 // POST /api/ordini/:id/ripristina — ripristina dal cestino
+// Se lo stato è già una fase "lavorata", riscarica automaticamente il magazzino.
 router.post('/:id/ripristina', (req, res) => {
-  db.prepare('UPDATE ordini SET deletedAt = NULL WHERE id = ?').run(req.params.id);
-  res.json({ ok: true });
+  const { id } = req.params;
+  const STATI_LAVORATI = ['in_lavorazione', 'pronto', 'consegnata'];
+  const magSummary = { scarico: 0, carico: 0, warnings: [] };
+  const tx = db.transaction(() => {
+    const row = db.prepare('SELECT stato, ricambi FROM ordini WHERE id = ?').get(id);
+    if (!row) return;
+    let ricambi = [];
+    try { ricambi = JSON.parse(row.ricambi || '[]'); } catch { ricambi = []; }
+    let updated = ricambi;
+    if (STATI_LAVORATI.includes(row.stato)) {
+      updated = ricambi.map(r => {
+        if (r && r.componenteId && !r.prelevato) {
+          const qta = parseInt(r.qta) || 1;
+          const result = registraMovimento(db, {
+            componenteId: r.componenteId,
+            ordineId: id,
+            tipo: 'scarico',
+            quantita: -qta,
+            motivo: 'Scarico: ordine ripristinato dal cestino',
+          });
+          if (result) {
+            const scaricato = -result.movimento.quantita;
+            magSummary.scarico += scaricato;
+            if (result.shortfall !== 0) {
+              const mancanti = Math.abs(result.shortfall);
+              magSummary.warnings.push(
+                `Giacenza insufficiente per "${result.componenteNome}": scaricati ${scaricato} pezz${scaricato === 1 ? 'o' : 'i'} su ${qta} richiest${qta === 1 ? 'o' : 'i'} (${mancanti} mancant${mancanti === 1 ? 'e' : 'i'})`
+              );
+            }
+            return { ...r, prelevato: true, movimentoId: result.movimento.id, qtaPrelevata: scaricato };
+          }
+        }
+        return r;
+      });
+    }
+    db.prepare('UPDATE ordini SET ricambi = ?, deletedAt = NULL WHERE id = ?')
+      .run(JSON.stringify(updated), id);
+  });
+  tx();
+  res.json({ ok: true, _magazzino: magSummary });
 });
 
 // DELETE /api/ordini/:id/permanente — eliminazione definitiva
+// Se l'ordine ha ancora ricambi prelevati (raro, es. eliminato senza passare
+// dal cestino) li ricaricamo prima di cancellare la riga.
 router.delete('/:id/permanente', (req, res) => {
-  db.prepare('DELETE FROM ordini WHERE id = ?').run(req.params.id);
+  const { id } = req.params;
+  const tx = db.transaction(() => {
+    const row = db.prepare('SELECT ricambi FROM ordini WHERE id = ?').get(id);
+    if (row) {
+      let ricambi = [];
+      try { ricambi = JSON.parse(row.ricambi || '[]'); } catch { ricambi = []; }
+      ricambi.forEach(r => {
+        if (r && r.prelevato && r.componenteId) {
+          const qta = parseInt(r.qtaPrelevata ?? r.qta) || 1;
+          if (qta > 0) {
+            registraMovimento(db, {
+              componenteId: r.componenteId,
+              ordineId: id,
+              tipo: 'carico',
+              quantita: qta,
+              motivo: 'Ricarico: ordine eliminato definitivamente',
+            });
+          }
+        }
+      });
+    }
+    db.prepare('DELETE FROM ordini WHERE id = ?').run(id);
+  });
+  tx();
   res.json({ ok: true });
 });
 
