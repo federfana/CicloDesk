@@ -51,6 +51,11 @@ const UI = (() => {
     return `<span class="card-badge ${cfg.cls}">${cfg.label}</span>`;
   }
 
+  // Etichetta leggibile di uno stato ordine (usata anche per i toast di conferma)
+  function statoLabel(stato) {
+    return (STATO_CFG[stato] || STATO_CFG.accettata).label;
+  }
+
   // Pulsante avanza (non mostrato se già consegnata)
   function btnAvanza(o) {
     const labels = {
@@ -211,7 +216,7 @@ const UI = (() => {
           <span class="card-sub">
             ${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} —
             <strong>${fmt(o.totale)}</strong>
-            ${badgeCommenti(o.commenti)}
+            ${badgeCommenti(o.commenti, o.id)}
           </span>
           ${badgeRicambi(o.ricambi, o.stato)}
           ${prontoBadge}
@@ -329,6 +334,8 @@ const UI = (() => {
       ordini = ordini.filter(o => o.stato === 'consegnata' && !o.pagato);
     } else if (filtro === 'consegnata_pagato') {
       ordini = ordini.filter(o => o.stato === 'consegnata' && o.pagato);
+    } else if (filtro === 'in_officina') {
+      ordini = ordini.filter(o => o.stato !== 'consegnata');
     } else if (filtro !== 'tutti') {
       ordini = ordini.filter(o => o.stato === filtro);
     }
@@ -430,7 +437,7 @@ const UI = (() => {
             <span class="card-title">👤 ${esc(c ? [c.nome, c.cognome].filter(Boolean).join(' ') : 'Cliente rimosso')}</span>
             <div style="display:flex;align-items:center;gap:.3rem">
               <span class="voci-badge" title="${o.voci.length} lavorazion${o.voci.length === 1 ? 'e' : 'i'} nell'ordine">🔧 ${o.voci.length}</span>
-              ${badgeCommenti(o.commenti)}
+              ${badgeCommenti(o.commenti, o.id)}
               ${badgeStato(o.stato)}
             </div>
           </div>
@@ -1180,7 +1187,7 @@ const UI = (() => {
     });
   }
 
-  async function apriModalOrdine(ordineId = null, preselezionaClienteId = null) {
+  async function apriModalOrdine(ordineId = null, preselezionaClienteId = null, opts = {}) {
     const [ordine, clienti, lavorazioni, componenti] = await Promise.all([
       ordineId ? OrdiniService.findById(ordineId) : Promise.resolve(null),
       ClientiService.getAll(),
@@ -1372,6 +1379,10 @@ const UI = (() => {
     }
 
     aggiornaLocale();
+    // Apri la sezione richiesta (o la prima di default). L'accordion opera
+    // solo su mobile, ma applichiamo comunque .open per coerenza.
+    const stepIniziale = opts.stepOpen || 'dati';
+    apriStepOrdine(stepIniziale);
     openModal('modal-ordine');
   }
 
@@ -1474,6 +1485,100 @@ const UI = (() => {
     return _ordineFoto;
   }
 
+  // ── Accordion form ordine ─────────────────────────────────────
+  // Le sezioni del modal-ordine si comportano come un accordion classico
+  // (solo mobile, via CSS): apre una sezione alla volta.
+  // Su desktop il CSS mostra tutte le sezioni comunque; il toggle qui
+  // sotto resta comunque funzionante ma senza effetto visibile (le badge
+  // e la validazione contestuale funzionano su entrambe le viewport).
+  function apriStepOrdine(stepName) {
+    const steps = document.querySelectorAll('#form-ordine .accordion-step');
+    steps.forEach(s => {
+      const isTarget = s.dataset.step === stepName;
+      s.classList.toggle('open', isTarget);
+      const header = s.querySelector('.step-header');
+      if (header) header.setAttribute('aria-expanded', isTarget ? 'true' : 'false');
+    });
+  }
+
+  function toggleStepOrdine(stepName) {
+    const step = document.querySelector(`#form-ordine .accordion-step[data-step="${stepName}"]`);
+    if (!step) return;
+    if (step.classList.contains('open')) {
+      // Se richiudo l'unica aperta rimango con tutto chiuso (accordion collassabile)
+      step.classList.remove('open');
+      step.querySelector('.step-header')?.setAttribute('aria-expanded', 'false');
+    } else {
+      apriStepOrdine(stepName);
+    }
+  }
+
+  // Delego il click sugli header a livello di form (una volta sola, alla registrazione)
+  const _formOrdineEl = document.getElementById('form-ordine');
+  if (_formOrdineEl && !_formOrdineEl.dataset.accordionInit) {
+    _formOrdineEl.dataset.accordionInit = '1';
+    _formOrdineEl.addEventListener('click', (ev) => {
+      const header = ev.target.closest('.step-header');
+      if (!header) return;
+      const step = header.closest('.accordion-step');
+      if (!step) return;
+      toggleStepOrdine(step.dataset.step);
+    });
+  }
+
+  // Aggiorna le badge riassuntive di ciascuna sezione + lo stato
+  // "compilato/mancante" (ok/warn). Chiamato ogni volta che cambiano voci,
+  // ricambi, cliente, acconto, commenti.
+  function aggiornaBadgeStepOrdine() {
+    const nVoci = document.querySelectorAll('#tbody-voci tr').length;
+    let subVoci = 0;
+    document.querySelectorAll('.inp-prezzo-voce').forEach(i => subVoci += parseFloat(i.value) || 0);
+
+    const nRicambi = document.querySelectorAll('#tbody-ricambi tr').length;
+    let subRicambi = 0;
+    document.querySelectorAll('#tbody-ricambi tr').forEach(tr => {
+      const qta = parseInt(tr.querySelector('.inp-ricambio-qta')?.value) || 1;
+      const prezzo = parseFloat(tr.querySelector('.inp-ricambio-prezzo')?.value) || 0;
+      subRicambi += qta * prezzo;
+    });
+
+    const clienteOk = !!document.getElementById('ordine-cliente-id').value;
+    const bici = document.getElementById('ordine-bici-id').value;
+    const acconto = parseFloat(document.getElementById('ordine-acconto')?.value) || 0;
+    const pagato = document.getElementById('ordine-pagato')?.checked;
+    const nCommenti = document.querySelectorAll('#ordine-timeline-list .timeline-item').length;
+
+    const set = (id, text, cls) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.remove('step-badge-ok', 'step-badge-warn');
+      if (cls) el.classList.add(cls);
+    };
+
+    set('step-badge-dati',
+      clienteOk ? (bici ? '✓' : '✓ senza bici') : '⚠ cliente mancante',
+      clienteOk ? 'step-badge-ok' : 'step-badge-warn');
+
+    set('step-badge-lavorazioni',
+      nVoci
+        ? `${nVoci} · ${fmt(subVoci)}`
+        : '⚠ nessuna',
+      nVoci ? 'step-badge-ok' : 'step-badge-warn');
+
+    set('step-badge-ricambi',
+      nRicambi ? `${nRicambi} · ${fmt(subRicambi)}` : '',
+      nRicambi ? 'step-badge-ok' : null);
+
+    set('step-badge-timeline',
+      nCommenti ? String(nCommenti) : '',
+      null);
+
+    set('step-badge-pagamento',
+      pagato ? '✓ saldato' : (acconto > 0 ? `Anticipo ${fmt(acconto)}` : ''),
+      pagato ? 'step-badge-ok' : null);
+  }
+
   function aggiornaLocale() {
     let subVoci = 0;
     document.querySelectorAll('.inp-prezzo-voce').forEach(i => subVoci += parseFloat(i.value) || 0);
@@ -1505,6 +1610,8 @@ const UI = (() => {
         restoLabel.style.color = '';
       }
     }
+    // Aggiorna le badge riassuntive dell'accordion
+    aggiornaBadgeStepOrdine();
   }
 
   function raccogliVoci() {
@@ -1732,8 +1839,12 @@ const UI = (() => {
     `).join('');
   }
 
-  function badgeCommenti(commenti) {
+  function badgeCommenti(commenti, ordineId = null) {
     if (!commenti || !commenti.length) return '';
+    // Se ho l'id lo rendo cliccabile → apre l'ordine sulla sezione Timeline
+    if (ordineId) {
+      return `<button type="button" class="commenti-badge commenti-badge-btn" data-action="apri-timeline-ordine" data-id="${ordineId}" title="Apri timeline (${commenti.length} note)">💬 ${commenti.length}</button>`;
+    }
     return `<span class="commenti-badge" title="${commenti.length} note">💬 ${commenti.length}</span>`;
   }
 
@@ -1763,17 +1874,44 @@ const UI = (() => {
     document.getElementById('lavorazione-nome').focus();
   }
 
-  // ── Modal helpers ─────────────────────────────────────────────
+  // ── Modal helpers (accessibilità: focus trap + ripristino focus) ──
+  const FOCUSABLE_SEL = 'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+  let _lastFocusTrigger = null; // elemento che aveva il focus prima di aprire il primo modale
+
+  function getFocusable(container) {
+    return Array.from(container.querySelectorAll(FOCUSABLE_SEL))
+      .filter(el => el.offsetParent !== null || el === document.activeElement);
+  }
+
   function openModal(id) {
     const openCount = document.querySelectorAll('.modal:not(.hidden)').length;
     const el = document.getElementById(id);
+    if (openCount === 0) _lastFocusTrigger = document.activeElement;
     if (openCount > 0) {
       el.style.zIndex = 500 + (openCount + 1) * 20;
     } else {
       el.style.zIndex = '';
     }
+
+    // Attributi ARIA: annuncia il dialogo e lo associa al suo titolo
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    const heading = el.querySelector('h3, h2');
+    if (heading) {
+      if (!heading.id) heading.id = `${id}-auto-title`;
+      el.setAttribute('aria-labelledby', heading.id);
+    }
+
     el.classList.remove('hidden');
     document.getElementById('overlay').classList.remove('hidden');
+
+    // Sposta il focus dentro il modale (primo campo utile), senza rubarlo
+    // se il chiamante l'ha già impostato esplicitamente subito dopo l'apertura
+    requestAnimationFrame(() => {
+      if (el.contains(document.activeElement)) return;
+      const focusable = getFocusable(el);
+      (focusable[0] || el).focus();
+    });
   }
 
   function closeAllModals() {
@@ -1782,6 +1920,34 @@ const UI = (() => {
       m.style.zIndex = '';
     });
     document.getElementById('overlay').classList.add('hidden');
+    // Ripristina il focus su chi aveva aperto il modale (bottone, card…)
+    if (_lastFocusTrigger && typeof _lastFocusTrigger.focus === 'function') {
+      _lastFocusTrigger.focus();
+    }
+    _lastFocusTrigger = null;
+  }
+
+  // Intrappola il Tab dentro il modale attualmente in primo piano, per non
+  // far uscire il focus dietro l'overlay (WCAG 2.4.3 / dialog pattern).
+  function trapFocusInTopModal(e) {
+    const open = Array.from(document.querySelectorAll('.modal:not(.hidden)'));
+    if (!open.length) return;
+    const top = open.reduce((a, b) => (parseInt(b.style.zIndex || 500, 10) >= parseInt(a.style.zIndex || 500, 10) ? b : a));
+    const focusable = getFocusable(top);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    } else if (!top.contains(document.activeElement)) {
+      // Il focus è "scappato" fuori dal modale (es. click programmatico altrove)
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   // ── Utility ───────────────────────────────────────────────────
@@ -2402,7 +2568,9 @@ const UI = (() => {
     aggiungiRigaVoce, raccogliVoci, getOrdineFoto, renderFotoPreview,
     aggiungiRigaRicambio, raccogliRicambi,
     renderTimeline, getOrdineCorrenteId: () => _ordineCorrenteId,
-    openModal, closeAllModals,
+    openModal, closeAllModals, trapFocusInTopModal,
+    statoLabel,
+    apriStepOrdine, toggleStepOrdine,
     printOrdine, cercaGlobale, aggiornaLocale,
     aggiornaNavBadges, beepNotifica,
     renderFornitori, apriModalPO, apriModalRiceviPO, aggiungiRigaPO,

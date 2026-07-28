@@ -98,6 +98,18 @@ const OrdiniService = (() => {
     return DB.update('ordini', id, { ...o, stato: 'in_lavorazione', dataUscita: null });
   }
 
+  // Imposta uno stato specifico senza passare dalla sequenza — usato per
+  // annullare un avanzamento rapido fatto per errore (toast "Annulla").
+  async function impostaStato(id, stato) {
+    const o = await findById(id);
+    if (!o) return null;
+    return DB.update('ordini', id, {
+      ...o,
+      stato,
+      dataUscita: stato === 'consegnata' ? (o.dataUscita || new Date().toISOString()) : null,
+    });
+  }
+
   async function togglePagato(id) {
     const o = await findById(id);
     if (!o) return null;
@@ -154,7 +166,7 @@ const OrdiniService = (() => {
   return {
     STATI,
     getAll, getPaginated, findById, getByCliente, getAperti, getChiusiOggi,
-    salva, avanza, riapri, togglePagato, elimina, calcolaIncasso,
+    salva, avanza, riapri, impostaStato, togglePagato, elimina, calcolaIncasso,
     getCestino, ripristina, eliminaDefinitivamente,
     aggiungiCommento, rimuoviCommento,
   };

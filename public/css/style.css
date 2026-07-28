@@ -211,6 +211,18 @@ main {
     flex-direction: column;
     align-items: center;
     border-top: 4px solid var(--primary);
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .12);
+}
+
+.stat-card:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .stat-card-pronto {
@@ -893,6 +905,19 @@ textarea:focus {
     font-size: 1rem;
 }
 
+/* Header compatto usato quando il titolo è già nello step-header dell'accordion:
+   niente h4, il pulsante "+ Aggiungi" resta allineato a destra. */
+.lavorazioni-header-compact {
+    justify-content: flex-end;
+    gap: .8rem;
+    flex-wrap: wrap;
+}
+
+.lavorazioni-header-compact .section-sub {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
 /* ── Modal ────────────────────────────────────────────────── */
 .modal {
     position: fixed;
@@ -949,14 +974,170 @@ textarea:focus {
     margin-top: 1.2rem;
 }
 
-#modal-ordine .modal-actions {
+/* ── Modal Ordine: accordion + footer sticky (totale sempre visibile) ── */
+/* Il .modal-ordine-box usa flex column con footer sticky in fondo, così
+   il totale e i pulsanti Salva/Annulla non richiedono di scorrere fino
+   in fondo (rilevante soprattutto su mobile con l'accordion). */
+.modal-ordine-box {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;
+    /* il footer sticky include il proprio padding-bottom */
+}
+
+.ordine-form-accordion {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.ordine-sticky-footer {
     position: sticky;
-    bottom: -1.5rem;
+    bottom: 0;
     background: var(--surface);
-    padding: 1rem 0 1.5rem;
-    margin-bottom: -1.5rem;
+    padding: .8rem 0 1.2rem;
+    margin-top: 1rem;
     border-top: 1px solid var(--border);
-    z-index: 2;
+    z-index: 3;
+}
+
+.ordine-sticky-footer .totale-ordine-box {
+    margin: 0 0 .6rem;
+    padding: .6rem 1rem;
+}
+
+.ordine-sticky-footer .totale-ordine-box #totale-ordine {
+    font-size: 1.25rem;
+}
+
+.ordine-sticky-footer .modal-actions {
+    margin-top: 0;
+    border-top: none;
+    padding: 0;
+    position: static;
+}
+
+/* Sezioni accordion — su desktop restano "aperte" con un semplice
+   separatore visivo (header piccolo, chevron nascosto). L'accordion vero
+   e proprio si attiva solo su mobile (media query più sotto). */
+.accordion-step {
+    border-top: 1px solid var(--border);
+    margin: 0;
+}
+
+.accordion-step:first-of-type {
+    border-top: none;
+}
+
+.step-header {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 1rem 0 .6rem;
+    cursor: default;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.step-header:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.step-icon {
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.step-title {
+    flex: 1 1 auto;
+}
+
+.step-badge {
+    font-size: .8rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--bg);
+    padding: .15rem .55rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.step-badge:empty {
+    display: none;
+}
+
+.step-badge.step-badge-ok {
+    color: #065f46;
+    background: #d1fae5;
+}
+
+.step-badge.step-badge-warn {
+    color: #92400e;
+    background: #fef3c7;
+}
+
+.step-chevron {
+    display: none;
+    /* nascosto su desktop, visibile su mobile */
+    color: var(--muted);
+    font-size: .9rem;
+    transition: transform .2s ease;
+}
+
+/* MOBILE — accordion attivo: solo la sezione .open mostra il body */
+@media (max-width: 768px) {
+    .ordine-form-accordion .step-body {
+        display: none;
+        padding-bottom: .8rem;
+    }
+
+    .ordine-form-accordion .accordion-step.open > .step-body {
+        display: block;
+    }
+
+    .ordine-form-accordion .step-header {
+        cursor: pointer;
+        padding: .85rem 0;
+    }
+
+    .ordine-form-accordion .step-chevron {
+        display: inline-block;
+    }
+
+    .ordine-form-accordion .accordion-step.open > .step-header .step-chevron {
+        transform: rotate(180deg);
+    }
+
+    .ordine-form-accordion .accordion-step.open > .step-header {
+        color: var(--primary);
+    }
+}
+
+body.dark .step-badge {
+    background: #1e293b;
+    color: #cbd5e1;
+}
+
+body.dark .step-badge.step-badge-ok {
+    background: #064e3b;
+    color: #a7f3d0;
+}
+
+body.dark .step-badge.step-badge-warn {
+    background: #78350f;
+    color: #fde68a;
+}
+
+body.dark .ordine-sticky-footer {
+    background: var(--surface);
+    border-top-color: rgba(255, 255, 255, .1);
 }
 
 /* ── Kbd (shortcut help) ──────────────────────────────────── */
@@ -1326,6 +1507,76 @@ h3 {
     }
 }
 
+/* ── Toast (in coda) ──────────────────────────────────────── */
+#toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: .6rem;
+    max-width: min(360px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    cursor: pointer;
+    color: #fff;
+    padding: .75rem 1.2rem;
+    border-radius: 8px;
+    font-size: .9rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
+    opacity: 0;
+    transform: translateY(.5rem);
+    transition: opacity .2s ease, transform .2s ease;
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast > span {
+    flex: 1 1 auto;
+}
+
+.toast-action {
+    flex-shrink: 0;
+    cursor: pointer;
+    background: rgba(255, 255, 255, .18);
+    border: 1px solid rgba(255, 255, 255, .5);
+    color: #fff;
+    font-weight: 600;
+    font-size: .82rem;
+    padding: .3rem .7rem;
+    border-radius: 6px;
+}
+
+.toast-action:hover {
+    background: rgba(255, 255, 255, .3);
+}
+
+.toast-success {
+    background: #16a34a;
+}
+
+.toast-error {
+    background: #dc2626;
+}
+
+@media (max-width: 480px) {
+    #toast-container {
+        left: 1rem;
+        right: 1rem;
+        max-width: none;
+    }
+}
+
 /* ── Modal Animations (#6) ────────────────────────────────── */
 .modal:not(.hidden) .modal-box {
     animation: modalIn .25s ease-out;
@@ -1657,7 +1908,7 @@ body.dark .modal-box {
     border-top-color: #60a5fa;
 }
 
-body.dark #modal-ordine .modal-actions {
+body.dark #modal-ordine .ordine-sticky-footer {
     background: #1e293b;
     border-top-color: #334155;
 }
@@ -2013,6 +2264,39 @@ body.dark .btn-secondary:hover {
     background: var(--surface);
 }
 
+/* ── Header actions (tema + scorciatoie) ──────────────────────
+   Raggruppate in un unico blocco non separabile, così i due pulsanti
+   restano sempre affiancati anche quando l'header va a capo. */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-shrink: 0;
+}
+
+/* Su schermi stretti l'header va su più righe: riordina i blocchi in modo
+   prevedibile invece di lasciare che i pulsanti si spezzino a caso.
+   Riga 1: logo + azioni tema/scorciatoie — Riga 2: ricerca — Riga 3: nav. */
+@media (max-width: 760px) {
+    .header-brand {
+        order: 1;
+    }
+
+    .header-actions {
+        order: 2;
+    }
+
+    .header-search {
+        order: 3;
+        flex-basis: 100%;
+    }
+
+    nav {
+        order: 4;
+        flex-basis: 100%;
+    }
+}
+
 /* ── Ricambi e componenti ─────────────────────────────────── */
 .tabella-ricambi {
     width: 100%;
@@ -2272,6 +2556,18 @@ body.dark .ricambi-ok {
     border-radius: 10px;
     margin-left: .3rem;
     font-weight: 600;
+}
+
+/* Versione cliccabile del badge commenti (apre la timeline dell'ordine) */
+.commenti-badge-btn {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: filter .15s;
+}
+
+.commenti-badge-btn:hover {
+    filter: brightness(1.15);
 }
 
 body.dark .timeline-item {

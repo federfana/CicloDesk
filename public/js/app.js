@@ -1,31 +1,52 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-  // ── Toast errori ──────────────────────────────────────────────
-  function showError(msg) {
+  // ── Toast (in coda, accessibili con aria-live) ─────────────────
+  // Contenitore unico: i toast si impilano in colonna invece di sovrapporsi
+  // quando arrivano ravvicinati (es. salvataggio + notifica magazzino).
+  const toastContainer = document.createElement('div');
+  toastContainer.id = 'toast-container';
+  toastContainer.setAttribute('aria-live', 'polite');
+  toastContainer.setAttribute('aria-atomic', 'false');
+  document.body.appendChild(toastContainer);
+
+  function showToast(msg, { type = 'success', duration = 3000, actionLabel, onAction } = {}) {
     const t = document.createElement('div');
-    t.textContent = '⚠ ' + msg;
-    Object.assign(t.style, {
-      position: 'fixed', bottom: '1.5rem', right: '1.5rem',
-      background: '#dc2626', color: '#fff', padding: '.75rem 1.2rem',
-      borderRadius: '8px', fontSize: '.9rem', zIndex: 9999,
-      boxShadow: '0 4px 12px rgba(0,0,0,.3)',
-    });
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 4000);
+    t.className = `toast toast-${type}`;
+    t.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    const text = document.createElement('span');
+    text.textContent = (type === 'error' ? '⚠ ' : '') + msg;
+    t.appendChild(text);
+
+    const remove = () => {
+      clearTimeout(timer);
+      t.classList.remove('show');
+      t.addEventListener('transitionend', () => t.remove(), { once: true });
+      setTimeout(() => t.remove(), 400); // fallback se transitionend non parte
+    };
+
+    if (actionLabel && onAction) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'toast-action';
+      btn.textContent = actionLabel;
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        remove();
+        onAction();
+      });
+      t.appendChild(btn);
+    }
+
+    toastContainer.appendChild(t);
+    // Forza il reflow prima di aggiungere la classe "show" per far partire la transizione
+    requestAnimationFrame(() => t.classList.add('show'));
+    const timer = setTimeout(remove, duration);
+    t.addEventListener('click', remove);
+    return t;
   }
 
-  function showSuccess(msg) {
-    const t = document.createElement('div');
-    t.textContent = msg;
-    Object.assign(t.style, {
-      position: 'fixed', bottom: '1.5rem', right: '1.5rem',
-      background: '#16a34a', color: '#fff', padding: '.75rem 1.2rem',
-      borderRadius: '8px', fontSize: '.9rem', zIndex: 9999,
-      boxShadow: '0 4px 12px rgba(0,0,0,.3)',
-    });
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
-  }
+  function showError(msg, opts) { return showToast(msg, { type: 'error', duration: 4500, ...opts }); }
+  function showSuccess(msg, opts) { return showToast(msg, { type: 'success', duration: 3000, ...opts }); }
 
   // Notifica gli effetti sul magazzino (scarico/carico automatico) ritornati
   // dal server in response._magazzino. Mostra un toast informativo e, in caso
@@ -115,6 +136,29 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.nav-btn').forEach(btn =>
     btn.addEventListener('click', () => showView(btn.dataset.view))
   );
+
+  // ── Card statistiche dashboard cliccabili (#UX) ───────────────
+  // Ogni card naviga alla vista corrispondente, applicando il filtro
+  // ordini indicato in data-nav-filter (se presente). Accessibile da
+  // tastiera (Invio / Spazio) grazie a role="button" + tabindex nel markup.
+  document.querySelectorAll('.stat-card[data-nav]').forEach(card => {
+    const goto = async () => {
+      const view = card.dataset.nav;
+      const filtro = card.dataset.navFilter;
+      if (view === 'ordini' && filtro) {
+        document.getElementById('filter-ordini').value = filtro;
+        sessionStorage.setItem('ciclo-ordini-filtro', filtro);
+      }
+      await showView(view);
+    };
+    card.addEventListener('click', () => goto().catch(showError));
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        goto().catch(showError);
+      }
+    });
+  });
 
   // ── Ricerca (con debounce) ────────────────────────────────────
   let _searchClientiTimeout = null;
@@ -281,6 +325,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ordine-acconto').addEventListener('input', () => {
     UI.aggiornaLocale();
   });
+
+  // ── Altri campi che devono aggiornare le badge dell'accordion ──
+  // (cliente e bici cambiano lo stato "compilato" della prima sezione;
+  //  saldato/pagato cambia la badge della sezione pagamento).
+  document.getElementById('ordine-pagato').addEventListener('change', () => UI.aggiornaLocale());
+  document.getElementById('ordine-bici-id').addEventListener('change', () => UI.aggiornaLocale());
+  document.getElementById('ordine-cliente-input').addEventListener('input', () => UI.aggiornaLocale());
 
   // ── Backup database ───────────────────────────────────────────
   document.getElementById('btn-backup-db').addEventListener('click', () => {
@@ -473,6 +524,11 @@ document.addEventListener('DOMContentLoaded', () => {
           await UI.printOrdine(id); break;
         case 'edit-ordine':
           await UI.apriModalOrdine(id); break;
+        case 'apri-timeline-ordine':
+          // Auto-apertura contestuale: clic sul badge commenti apre l'ordine
+          // con la sezione Timeline già espansa (utile su mobile).
+          await UI.apriModalOrdine(id, null, { stepOpen: 'timeline' });
+          break;
         case 'del-ordine':
           if (confirm('Spostare questo ordine nel cestino?')) {
             await OrdiniService.elimina(id);
@@ -498,10 +554,28 @@ document.addEventListener('DOMContentLoaded', () => {
           await OrdiniService.togglePagato(id);
           await refreshView(currentView);
           break;
-        case 'avanza-ordine':
-          await OrdiniService.avanza(id);
+        case 'avanza-ordine': {
+          const prima = await OrdiniService.findById(id);
+          const statoPrima = prima?.stato;
+          const dopo = await OrdiniService.avanza(id);
           await refreshView(currentView);
+          notificaMagazzino(dopo?._magazzino);
+          if (statoPrima && dopo?.stato && statoPrima !== dopo.stato) {
+            showSuccess(`✅ Ordine avanzato a "${UI.statoLabel(dopo.stato)}"`, {
+              duration: 6000,
+              actionLabel: '↩️ Annulla',
+              onAction: async () => {
+                try {
+                  const ripristinato = await OrdiniService.impostaStato(id, statoPrima);
+                  await refreshView(currentView);
+                  showSuccess('↩️ Avanzamento annullato');
+                  notificaMagazzino(ripristinato?._magazzino);
+                } catch (e) { showError(e.message); }
+              },
+            });
+          }
           break;
+        }
         case 'riapri-ordine':
           await OrdiniService.riapri(id);
           await refreshView(currentView);
@@ -565,19 +639,33 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   document.getElementById('overlay').addEventListener('click', () => UI.closeAllModals());
 
-  // ── Escape key chiude modali ──────────────────────────────────
+  // ── Escape key chiude modali / Tab intrappolato nel modale in primo piano ──
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') UI.closeAllModals();
 
+    if (e.key === 'Tab') UI.trapFocusInTopModal(e);
+
     // ── Help shortcut ─────────────────────────────────────────
     if (e.key === '?' && !e.ctrlKey && !e.metaKey && !document.querySelector('.modal:not(.hidden)') && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-      document.getElementById('modal-shortcuts').classList.remove('hidden');
-      document.getElementById('overlay').classList.remove('hidden');
+      UI.openModal('modal-shortcuts');
+      return;
+    }
+
+    // ── Ricerca rapida con "/" ─────────────────────────────────
+    // A differenza di Ctrl+F (riservato dal browser per il "Trova nella pagina"
+    // e non annullabile via preventDefault su Chrome/Firefox/Edge), "/" è un
+    // tasto libero: stesso pattern di "?" per la guida (stesso tasto fisico).
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)') && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+      e.preventDefault();
+      document.getElementById('search-globale').focus();
       return;
     }
 
     // ── Shortcut tastiera (#11) ───────────────────────────────
-    // Ctrl+key su tutte le piattaforme; Alt/Option+key come alternativa su macOS
+    // Ctrl+key su tutte le piattaforme; Alt/Option+key come alternativa su macOS.
+    // Nota: su Windows/Linux, Ctrl+F/D/N/S sono riservate dal browser (Trova,
+    // Preferiti, Nuova finestra, Salva pagina) e potrebbero non funzionare o
+    // aprire anche la funzione nativa del browser: per la ricerca usa "/".
     if (!e.ctrlKey && !e.altKey) return;
     const code = e.code; // tasto fisico (non influenzato da Option su macOS)
     const map = { KeyF: 'f', KeyD: 'd', KeyN: 'n', KeyS: 's' };
@@ -619,8 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Pulsante Help shortcut ────────────────────────────────────
   document.getElementById('btn-help-shortcuts').addEventListener('click', () => {
-    document.getElementById('modal-shortcuts').classList.remove('hidden');
-    document.getElementById('overlay').classList.remove('hidden');
+    UI.openModal('modal-shortcuts');
   });
 
   // ── Submit Cliente ────────────────────────────────────────────
@@ -657,10 +744,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = e.target.querySelector('[type="submit"]');
     submitBtn.disabled = true;
     const clienteId = document.getElementById('ordine-cliente-id').value;
-    if (!clienteId) { showError('Seleziona un cliente.'); submitBtn.disabled = false; return; }
+    if (!clienteId) {
+      // Apri la sezione col problema (mobile) e sposta il focus sul campo
+      UI.apriStepOrdine('dati');
+      document.getElementById('ordine-cliente-input').focus();
+      showError('Seleziona un cliente.');
+      submitBtn.disabled = false;
+      return;
+    }
     try {
-      const voci = UI.raccogliVoci();
-      if (!voci.length) { showError('Aggiungi almeno una lavorazione all\u2019ordine.'); submitBtn.disabled = false; return; }
+      let voci;
+      try {
+        voci = UI.raccogliVoci();
+      } catch (errVoci) {
+        UI.apriStepOrdine('lavorazioni');
+        throw errVoci;
+      }
+      if (!voci.length) {
+        UI.apriStepOrdine('lavorazioni');
+        showError('Aggiungi almeno una lavorazione all\u2019ordine.');
+        submitBtn.disabled = false;
+        return;
+      }
       const ordineId = document.getElementById('ordine-id').value || null;
       const esistente = ordineId ? await OrdiniService.findById(ordineId) : null;
 

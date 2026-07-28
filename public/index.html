@@ -16,7 +16,7 @@
       <h1>CicloDesk</h1>
     </div>
     <div class="header-search">
-      <input type="text" id="search-globale" placeholder="🔍 Cerca ovunque…" autocomplete="off" />
+      <input type="text" id="search-globale" placeholder="🔍 Cerca ovunque… (premi /)" autocomplete="off" aria-label="Ricerca globale" />
       <div id="search-globale-results" class="global-search-results hidden"></div>
     </div>
     <nav>
@@ -27,8 +27,10 @@
       <button class="nav-btn" data-view="magazzino">Magazzino</button>
       <button class="nav-btn" data-view="fornitori">Approvvigionamenti</button>
     </nav>
-    <button id="btn-theme-toggle" class="theme-toggle" aria-label="Cambia tema" title="Tema chiaro/scuro">🌙</button>
-    <button id="btn-help-shortcuts" class="theme-toggle" aria-label="Scorciatoie" title="Scorciatoie tastiera (?)">⌨️</button>
+    <div class="header-actions">
+      <button id="btn-theme-toggle" class="theme-toggle" aria-label="Cambia tema" title="Tema chiaro/scuro">🌙</button>
+      <button id="btn-help-shortcuts" class="theme-toggle" aria-label="Scorciatoie" title="Scorciatoie tastiera (?)">⌨️</button>
+    </div>
   </header>
 
   <div id="breadcrumb"></div>
@@ -39,23 +41,23 @@
     <section id="view-dashboard" class="view active">
       <h2>Dashboard</h2>
       <div class="stats-grid">
-        <div class="stat-card">
+        <div class="stat-card" data-nav="clienti" role="button" tabindex="0" aria-label="Vai a Schede Clienti">
           <span class="stat-num" id="stat-num-clienti">0</span>
           <span class="stat-label">Clienti registrati</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" data-nav="ordini" data-nav-filter="in_officina" role="button" tabindex="0" aria-label="Vai agli ordini in officina">
           <span class="stat-num" id="stat-num-in">0</span>
           <span class="stat-label">In officina</span>
         </div>
-        <div class="stat-card stat-card-pronto">
+        <div class="stat-card stat-card-pronto" data-nav="ordini" data-nav-filter="pronto" role="button" tabindex="0" aria-label="Vai agli ordini pronti al ritiro">
           <span class="stat-num" id="stat-num-pronto">0</span>
           <span class="stat-label">Pronte al ritiro</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" data-nav="ordini" data-nav-filter="consegnata" role="button" tabindex="0" aria-label="Vai agli ordini consegnati">
           <span class="stat-num" id="stat-num-out">0</span>
           <span class="stat-label">Consegnate oggi</span>
         </div>
-        <div class="stat-card stat-card-non-pagato">
+        <div class="stat-card stat-card-non-pagato" data-nav="ordini" data-nav-filter="consegnata_non_pagato" role="button" tabindex="0" aria-label="Vai agli ordini consegnati non pagati">
           <span class="stat-num" id="stat-num-non-pagato">0</span>
           <span class="stat-label">Consegnate non pagate</span>
         </div>
@@ -101,6 +103,7 @@
         <label>Filtra:
           <select id="filter-ordini">
             <option value="tutti">Tutti</option>
+            <option value="in_officina">🔧 In officina (non consegnati)</option>
             <option value="accettata">📥 Accettati</option>
             <option value="in_lavorazione">🔧 In lavorazione</option>
             <option value="pronto">✅ Pronti</option>
@@ -220,10 +223,20 @@
 
   <!-- Modal Ordine -->
   <div id="modal-ordine" class="modal hidden">
-    <div class="modal-box modal-box-large">
+    <div class="modal-box modal-box-large modal-ordine-box">
       <h3 id="modal-ordine-title">Nuovo Ordine di Lavoro</h3>
-      <form id="form-ordine" novalidate>
+      <form id="form-ordine" class="ordine-form-accordion" novalidate>
         <input type="hidden" id="ordine-id" />
+
+        <!-- ══ Sezione 1: Dati cliente & bici ══ -->
+        <section class="accordion-step" data-step="dati" data-required="true">
+          <button type="button" class="step-header" aria-expanded="true" aria-controls="step-dati-body">
+            <span class="step-icon">👤</span>
+            <span class="step-title">Dati cliente &amp; bici</span>
+            <span class="step-badge" id="step-badge-dati" aria-hidden="true"></span>
+            <span class="step-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="step-body" id="step-dati-body">
         <div class="form-grid">
           <label>Cliente *
             <input type="text" id="ordine-cliente-input" placeholder="🔍 Cerca o seleziona cliente" autocomplete="off" />
@@ -254,9 +267,19 @@
           </label>
           <div id="ordine-foto-preview" class="foto-preview"></div>
         </div>
-        <hr />
-        <div class="lavorazioni-header">
-          <h4>Lavorazioni</h4>
+          </div>
+        </section>
+
+        <!-- ══ Sezione 2: Lavorazioni ══ -->
+        <section class="accordion-step" data-step="lavorazioni" data-required="true">
+          <button type="button" class="step-header" aria-expanded="false" aria-controls="step-lavorazioni-body">
+            <span class="step-icon">🔧</span>
+            <span class="step-title">Lavorazioni</span>
+            <span class="step-badge" id="step-badge-lavorazioni" aria-hidden="true"></span>
+            <span class="step-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="step-body" id="step-lavorazioni-body">
+        <div class="lavorazioni-header lavorazioni-header-compact">
           <button type="button" id="btn-aggiungi-voce" class="btn btn-secondary">+ Aggiungi Voce</button>
         </div>
         <table id="tabella-voci">
@@ -277,12 +300,20 @@
             </tr>
           </tfoot>
         </table>
-        <hr />
-        <div class="lavorazioni-header">
-          <div>
-            <h4>📦 Ricambi e componenti</h4>
-            <p class="section-sub">Pezzi necessari per l'ordine — dal magazzino o da ordinare</p>
           </div>
+        </section>
+
+        <!-- ══ Sezione 3: Ricambi ══ -->
+        <section class="accordion-step" data-step="ricambi">
+          <button type="button" class="step-header" aria-expanded="false" aria-controls="step-ricambi-body">
+            <span class="step-icon">📦</span>
+            <span class="step-title">Ricambi e componenti</span>
+            <span class="step-badge" id="step-badge-ricambi" aria-hidden="true"></span>
+            <span class="step-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="step-body" id="step-ricambi-body">
+        <div class="lavorazioni-header lavorazioni-header-compact">
+          <p class="section-sub">Pezzi necessari per l'ordine — dal magazzino o da ordinare</p>
           <button type="button" id="btn-aggiungi-ricambio" class="btn btn-secondary">+ Aggiungi</button>
         </div>
         <table id="tabella-ricambi" class="tabella-ricambi">
@@ -305,14 +336,18 @@
             </tr>
           </tfoot>
         </table>
-        <div class="totale-ordine-box">
-          <span class="totale-ordine-label">Totale ordine</span>
-          <strong id="totale-ordine">€ 0,00</strong>
-        </div>
-        <hr />
-        <div class="lavorazioni-header">
-          <h4>💬 Timeline / Note di lavorazione</h4>
-        </div>
+          </div>
+        </section>
+
+        <!-- ══ Sezione 4: Timeline ══ -->
+        <section class="accordion-step" data-step="timeline">
+          <button type="button" class="step-header" aria-expanded="false" aria-controls="step-timeline-body">
+            <span class="step-icon">💬</span>
+            <span class="step-title">Timeline / Note di lavorazione</span>
+            <span class="step-badge" id="step-badge-timeline" aria-hidden="true"></span>
+            <span class="step-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="step-body" id="step-timeline-body">
         <div id="ordine-timeline-aggiungi" class="hidden">
           <div class="timeline-input-row">
             <input type="text" id="ordine-commento-input" placeholder="Es. Chiamato fornitore, pezzo in arrivo lunedì…" />
@@ -321,10 +356,18 @@
           <div id="ordine-timeline-list" class="timeline-list"></div>
         </div>
         <p id="ordine-timeline-placeholder" class="card-sub">Salva prima l'ordine per aggiungere note progressive con timestamp.</p>
-        <hr />
-        <div class="lavorazioni-header">
-          <h4>💰 Pagamento</h4>
-        </div>
+          </div>
+        </section>
+
+        <!-- ══ Sezione 5: Pagamento ══ -->
+        <section class="accordion-step" data-step="pagamento">
+          <button type="button" class="step-header" aria-expanded="false" aria-controls="step-pagamento-body">
+            <span class="step-icon">💰</span>
+            <span class="step-title">Pagamento</span>
+            <span class="step-badge" id="step-badge-pagamento" aria-hidden="true"></span>
+            <span class="step-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="step-body" id="step-pagamento-body">
         <div class="form-grid">
           <label>Anticipo versato €
             <input type="number" id="ordine-acconto" min="0" step="0.01" placeholder="0.00" />
@@ -337,9 +380,19 @@
           <input type="checkbox" id="ordine-pagato" />
           <span>Saldato</span>
         </label>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary modal-close">Annulla</button>
-          <button type="submit" class="btn btn-primary">Salva Ordine</button>
+          </div>
+        </section>
+
+        <!-- Totale sticky in fondo al modal-box -->
+        <div class="ordine-sticky-footer">
+          <div class="totale-ordine-box">
+            <span class="totale-ordine-label">Totale ordine</span>
+            <strong id="totale-ordine">€ 0,00</strong>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary modal-close">Annulla</button>
+            <button type="submit" class="btn btn-primary">Salva Ordine</button>
+          </div>
         </div>
       </form>
     </div>
@@ -737,7 +790,7 @@
       <h3>⌨️ Scorciatoie da tastiera</h3>
       <table style="width:100%;margin-top:.8rem;font-size:.9rem">
         <tbody>
-          <tr><td><kbd>Ctrl</kbd> / <kbd>⌥ Option</kbd> + <kbd>F</kbd></td><td>Ricerca globale</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Ricerca globale</td></tr>
           <tr><td><kbd>Ctrl</kbd> / <kbd>⌥ Option</kbd> + <kbd>D</kbd></td><td>Vai a Dashboard</td></tr>
           <tr><td><kbd>Ctrl</kbd> / <kbd>⌥ Option</kbd> + <kbd>N</kbd></td><td>Nuovo (cliente/ordine/lavorazione)</td></tr>
           <tr><td><kbd>Ctrl</kbd> / <kbd>⌥ Option</kbd> + <kbd>S</kbd></td><td>Salva form aperto</td></tr>
@@ -745,6 +798,7 @@
           <tr><td><kbd>?</kbd></td><td>Mostra questa guida</td></tr>
         </tbody>
       </table>
+      <p class="card-sub" style="margin-top:.6rem">ℹ️ Su Windows/Linux <kbd>Ctrl</kbd>+<kbd>F</kbd>/<kbd>D</kbd>/<kbd>N</kbd>/<kbd>S</kbd> sono riservate dal browser (Trova, Preferiti, Nuova finestra, Salva): se non rispondono usa <kbd>/</kbd> per la ricerca.</p>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary modal-close">Chiudi</button>
       </div>
